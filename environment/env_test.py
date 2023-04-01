@@ -9,6 +9,8 @@ class ReacherEnv(BaseEnv):
     def __init__(self, render, train=True, moving_goal=False, tolerance=0.01):
         super().__init__(render=render, train=train, moving_goal=moving_goal, tolerance=tolerance)
         self.reset()
+        self.joint_states = p.getJointStates(self.arm_id, self.joint_indices)
+
         
     def reset(self, goal_pos=None):
         if goal_pos is None:
@@ -20,16 +22,24 @@ class ReacherEnv(BaseEnv):
         self.ep_len = 0
         return obs
 
-    def step(self, act):
-        action = self.scale_action(act)
-        p.setJointMotorControlArray(bodyIndex=self.arm_id,
-                                    jointIndices=self.joint_indices,
-                                    controlMode=p.VELOCITY_CONTROL,
-                                    forces=np.zeros(6))
-        p.setJointMotorControlArray(bodyIndex=self.arm_id,
-                                    jointIndices=self.joint_indices,
-                                    controlMode=p.TORQUE_CONTROL,
-                                    forces=action)
+    def step(self, action):
+        scaled_action = self.scale_action(action)
+        ee_pos = np.array(p.getLinkState(self.arm_id, 6)[0])
+        goal_pos = p.getBasePositionAndOrientation(self.goal_id)[0]
+        step = (goal_pos - ee_pos) / 1000
+        ll = [-3.142,-3.14,-3.142,-3.142,-3.142,-3.142]
+        #upper limits for null space (todo: set them to proper range)
+        ul = [3.142,0,3.142,3.142,3.142,3.142,3.142]
+        #joint ranges for null space (todo: set them to proper range)
+        desired_joint_positions = p.calculateInverseKinematics(self.arm_id, 6, goal_pos,[1,0,0,0],lowerLimits=ll, upperLimits=ul, residualThreshold=1e-5 )[:6]
+        for idx, pos in zip(self.joint_indices,desired_joint_positions):
+            p.setJointMotorControl2(
+                bodyIndex=self.arm_id,
+                jointIndex=idx,
+                controlMode=p.POSITION_CONTROL,
+                targetPosition=pos,
+                #forces=torque
+            )
         p.stepSimulation()
 
         obs = self.get_obs()
@@ -64,3 +74,18 @@ class ReacherEnv(BaseEnv):
         z = np.random.uniform(0.63,0.5+0.62)
         return np.array([x,y,z])
 
+
+def main():
+    env = ReacherEnv(1)
+    while True:
+        action = np.random.uniform(-1., 1., env.act_dim)
+        o,r,d,i = env.step(action)
+        print(i)
+        time.sleep(0.1)
+    
+    
+
+
+
+if __name__ == "__main__":
+    main()

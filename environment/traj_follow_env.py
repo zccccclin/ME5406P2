@@ -5,7 +5,7 @@ import time
 
 from base_env import BaseEnv
 
-class ReacherEnv(BaseEnv):
+class TrajFollowEnv(BaseEnv):
     def __init__(self, render, train=True, moving_goal=False, tolerance=0.01):
         super().__init__(render=render, train=train, moving_goal=moving_goal, tolerance=tolerance)
         self.reset()
@@ -58,9 +58,4 @@ class ReacherEnv(BaseEnv):
         reward -= 0.1 * np.square(action).sum()
         return reward, dist, done
 
-    def gen_goal(self):
-        x = np.random.uniform(0.2,0.5)
-        y = np.random.uniform(-0.5,0.5)
-        z = np.random.uniform(0.63,0.5+0.62)
-        return np.array([x,y,z])
 
