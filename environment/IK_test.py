@@ -38,46 +38,73 @@ def IK_reacher():
     print(jointIds)
     print(_link_name_to_index)
 
-    while True:
-        # Randomize goal
-        x = np.random.uniform(0.2,0.5)
-        y = np.random.uniform(-0.5,0.5)
-        z = np.random.uniform(0.63,0.5+0.62)
-        goal_pose = np.array([x,y,z])
-        p.resetBasePositionAndOrientation(goal_id,goal_pose,[0,0,0,1])
+    # while True:
+    #     # Randomize goal
+    #     x = np.random.uniform(0.2,0.5)
+    #     y = np.random.uniform(-0.5,0.5)
+    #     z = np.random.uniform(0.63,0.5+0.62)
+    #     goal_pose = np.array([x,y,z])
+    #     p.resetBasePositionAndOrientation(goal_id,goal_pose,[0,0,0,1])
 
-        angle_noise_range = 0.02
-        joint_states = p.getJointStates(robot_id, joint_indices)
-        qpos = np.array([j[0] for j in joint_states])
-        qpos += np.random.uniform(-angle_noise_range, angle_noise_range, 6)
-        qvel = np.array([j[1] for j in joint_states])
-        qvel += np.random.uniform(-angle_noise_range, angle_noise_range, 6)
+    #     angle_noise_range = 0.02
+    #     joint_states = p.getJointStates(robot_id, joint_indices)
+    #     qpos = np.array([j[0] for j in joint_states])
+    #     qpos += np.random.uniform(-angle_noise_range, angle_noise_range, 6)
+    #     qvel = np.array([j[1] for j in joint_states])
+    #     qvel += np.random.uniform(-angle_noise_range, angle_noise_range, 6)
 
 
-        for i in range(100):
-            time.sleep(0.01)
+    #     for i in range(100):
+    #         time.sleep(0.01)
 
-            joint_states = p.getJointStates(robot_id, joint_indices)
-            joint_positions = np.array([j[0] for j in joint_states])
-            desired_joint_positions = p.calculateInverseKinematics(robot_id, num_joints, p.getBasePositionAndOrientation(goal_id)[0],[1,0,0,0],lowerLimits=ll, upperLimits=ul, residualThreshold=1e-5 )[:6]
+    #         joint_states = p.getJointStates(robot_id, joint_indices)
+    #         joint_positions = np.array([j[0] for j in joint_states])
+    #         desired_joint_positions = p.calculateInverseKinematics(robot_id, num_joints, p.getBasePositionAndOrientation(goal_id)[0],[1,0,0,0],lowerLimits=ll, upperLimits=ul, residualThreshold=1e-5 )[:6]
             
-            error = desired_joint_positions - joint_positions
-            for idx, pos in zip(joint_indices,desired_joint_positions):
-                p.setJointMotorControl2(
-                    bodyIndex=robot_id,
-                    jointIndex=idx,
-                    controlMode=p.POSITION_CONTROL,
-                    targetPosition=pos,
-                    #forces=torque
-                )
-            # ee_pos = np.array(p.getLinkState(robot_id, 6)[0])
-            # print(ee_pos, goal_pose)             
-            #print(p.getBasePositionAndOrientation(goal)[0], p.getLinkState(robot_id,6)[0])
-            #print(desired_joint_positions, joint_positions)
-            p.stepSimulation()
-            #print(qpos, qvel)
+    #         error = desired_joint_positions - joint_positions
+    #         for idx, pos in zip(joint_indices,desired_joint_positions):
+    #             p.setJointMotorControl2(
+    #                 bodyIndex=robot_id,
+    #                 jointIndex=idx,
+    #                 controlMode=p.POSITION_CONTROL,
+    #                 targetPosition=pos,
+    #                 #forces=torque
+    #             )
+    #         # ee_pos = np.array(p.getLinkState(robot_id, 6)[0])
+    #         # print(ee_pos, goal_pose)             
+    #         #print(p.getBasePositionAndOrientation(goal)[0], p.getLinkState(robot_id,6)[0])
+    #         #print(desired_joint_positions, joint_positions)
+    #         p.stepSimulation()
+    #         #print(qpos, qvel)
+
+    home_pos = np.array([0.3, 0, 1])
+    while True:
+        p.resetBasePositionAndOrientation(goal_id,home_pos,[0,0,0,1])
+        time.sleep(0.01)
+        joint_states = p.getJointStates(robot_id, joint_indices)
+        joint_positions = np.array([j[0] for j in joint_states])
+        desired_joint_positions = p.calculateInverseKinematics(robot_id, num_joints, home_pos,[1,0,0,0],lowerLimits=ll, upperLimits=ul, residualThreshold=1e-5 )[:6]
+        
+        error = desired_joint_positions - joint_positions
+        for idx, pos in zip(joint_indices,desired_joint_positions):
+            p.setJointMotorControl2(
+                bodyIndex=robot_id,
+                jointIndex=idx,
+                controlMode=p.POSITION_CONTROL,
+                targetPosition=pos,
+                #forces=torque
+            )
+        ee_pos = np.array(p.getLinkState(robot_id, 6)[0])
+        print(ee_pos)             
+        #print(p.getBasePositionAndOrientation(goal)[0], p.getLinkState(robot_id,6)[0])
+        #print(desired_joint_positions, joint_positions)
+        p.stepSimulation()
+        #print(qpos, qvel)
 
     # initial ee pos: (0.20700000000000002, -0.000640499408948619, 0.7415200047024912)
+
+
+    
 
 if __name__ == "__main__":
     IK_reacher()
