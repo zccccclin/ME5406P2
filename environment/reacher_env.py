@@ -48,6 +48,7 @@ class ReacherEnv(BaseEnv):
     def compute_reward(self, ee_pos, goal_pos, action):
         dist = np.linalg.norm(ee_pos - goal_pos)
 
+        # sparse reward
         if dist < self.dist_tolerance:
             done = True
             reward_dist = 1
@@ -55,7 +56,16 @@ class ReacherEnv(BaseEnv):
             done = False
             reward_dist = -1
         reward = reward_dist
+        # Action penalty
         reward -= 0.1 * np.square(action).sum()
+
+        # # dense reward
+        # reward = -dist
+        # if dist < self.dist_tolerance:
+        #     done = True
+        # else:
+        #     done = False
+
         return reward, dist, done
 
     def gen_goal(self):
