@@ -11,8 +11,6 @@ class TrajFollowEnv(BaseEnv):
         self.reset()
         
     def reset(self, goal_pos=None):
-        if goal_pos is None:
-            goal_pos = self.gen_goal()
         self.reset_scene(goal_pos)
 
         obs = self.get_obs
