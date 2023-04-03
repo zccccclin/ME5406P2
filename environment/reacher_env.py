@@ -6,22 +6,25 @@ import time
 from base_env import BaseEnv
 
 class ReacherEnv(BaseEnv):
-    def __init__(self, render, train=True, moving_goal=False, tolerance=0.01):
+    def __init__(self, render=False, train=True, moving_goal=False, tolerance=0.01):
         super().__init__(render=render, train=train, moving_goal=moving_goal, tolerance=tolerance)
         self.reset()
         
     def reset(self, goal_pos=None):
-        if goal_pos is None:
-            goal_pos = self.gen_goal()
+        # if goal_pos is None:
+        #     goal_pos = self.gen_goal()
+        goal_pos = np.array([0.3, 0.2, 1.2])
         self.reset_scene(goal_pos)
 
-        obs = self.get_obs
+        obs = self.get_obs()[0]
         self.ep_reward = 0
         self.ep_len = 0
         return obs
 
     def step(self, act):
-        action = self.scale_action(act)
+        _ = None
+        # action = self.scale_action(act)
+        action = act
         p.setJointMotorControlArray(bodyIndex=self.arm_id,
                                     jointIndices=self.joint_indices,
                                     controlMode=p.VELOCITY_CONTROL,
@@ -32,7 +35,7 @@ class ReacherEnv(BaseEnv):
                                     forces=action)
         p.stepSimulation()
 
-        obs = self.get_obs()
+        obs = self.get_obs()[0]
         goal_pos = np.array(p.getBasePositionAndOrientation(self.goal_id)[0])
         reward, dist, done = self.compute_reward(obs[1], goal_pos, action)
 
@@ -43,28 +46,29 @@ class ReacherEnv(BaseEnv):
                 "reward": reward,
                 "dist": dist}
         
-        return obs, reward, done, info
+        return obs, reward, done, info, _
 
     def compute_reward(self, ee_pos, goal_pos, action):
         dist = np.linalg.norm(ee_pos - goal_pos)
 
-        # sparse reward
-        if dist < self.dist_tolerance:
-            done = True
-            reward_dist = 1
-        else:
-            done = False
-            reward_dist = -1
-        reward = reward_dist
-        # Action penalty
-        reward -= 0.1 * np.square(action).sum()
-
-        # # dense reward
-        # reward = -dist
+        # # sparse reward
         # if dist < self.dist_tolerance:
         #     done = True
+        #     reward_dist = 1
         # else:
         #     done = False
+        #     reward_dist = -1
+        # reward = reward_dist
+        # # Action penalty
+        # reward -= 0.1 * np.square(action).sum()
+
+        # dense reward
+        reward = -dist
+        if dist < self.dist_tolerance:
+            reward = 1
+            done = True
+        else:
+            done = False
 
         return reward, dist, done
 
@@ -73,4 +77,8 @@ class ReacherEnv(BaseEnv):
         y = np.random.uniform(-0.5,0.5)
         z = np.random.uniform(0.63,0.5+0.62)
         return np.array([x,y,z])
+    
+    def action_space_sample(self):
+        act = np.random.uniform(-1, 1, self.act_dim)
+        return act
 

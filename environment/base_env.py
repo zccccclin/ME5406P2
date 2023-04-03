@@ -26,8 +26,8 @@ class BaseEnv:
         self.act_dim = p.getNumJoints(self.arm_id) - 1
 
         high = np.inf * np.ones(self.obs_dim)
-        self.obs_space = spaces.Box(-high, high, dtype=np.float32)
-        self.act_space = self.update_act_space()
+        self.observation_space = spaces.Box(-high, high, dtype=np.float32)
+        self.action_space = self.update_action_space()
 
 
     def step(self, action):
@@ -48,16 +48,16 @@ class BaseEnv:
                                  physicsClientId=self.pc._client, flags=p.URDF_USE_SELF_COLLISION | p.URDF_USE_SELF_COLLISION_INCLUDE_PARENT)
 
     
-    def update_act_space(self):        
+    def update_action_space(self):        
         # Torque array
-        action_bound = np.array([100, 100, 50, 50, 25, 25])
+        action_bound = np.array([50, 50, 25, 25, 10, 10])
         action_space = spaces.Box(-action_bound, action_bound, dtype=np.float32)
 
         return action_space
 
     def scale_action(self, act):
-        act_h = (self.act_space.high - self.act_space.low) / 2
-        act_l = (self.act_space.high + self.act_space.low) / 2
+        act_h = (self.action_space.high - self.action_space.low) / 2
+        act_l = (self.action_space.high + self.action_space.low) / 2
         return act * act_h + act_l
 
     def get_obs(self):
@@ -70,9 +70,10 @@ class BaseEnv:
         obs = np.concatenate([qpos, qvel])
 
         goal_pos = np.array(p.getBasePositionAndOrientation(self.goal_id)[0])
-        obs = np.concatenate([obs, goal_pos])
-
         ee_pos = np.array(p.getLinkState(self.arm_id, 6)[0])
+
+        obs = np.concatenate([obs, ee_pos, goal_pos])
+
 
         return obs, ee_pos
 
