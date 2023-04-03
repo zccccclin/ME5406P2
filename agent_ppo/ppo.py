@@ -10,8 +10,8 @@ from model import ActorCritic
 class PPO_Agent:
     def __init__(self, env):
         # Initialize hyperparam
-        self.timestep_per_batch = 3000
-        self.max_timesteps_per_episode = 1000
+        self.timestep_per_batch = 15000
+        self.max_timesteps_per_episode = 5000
         self.gamma = 0.95
         self.n_updates_per_iteration = 5
         self.lr = 0.005
@@ -22,8 +22,8 @@ class PPO_Agent:
         self.act_dim = env.action_space.shape[0]
 
         # Intialize Actor Critic
-        self.actor = ActorCritic(self.obs_dim, self.act_dim, 64, 64)
-        self.critic = ActorCritic(self.obs_dim, 1, 64, 64)
+        self.actor = ActorCritic("actor", self.obs_dim, self.act_dim, 64, 64)
+        self.critic = ActorCritic("critic", self.obs_dim, 1, 64, 64)
 
         # Initialize optimizer
         self.actor_optim = Adam(self.actor.parameters(), lr=self.lr)
@@ -100,7 +100,7 @@ class PPO_Agent:
         while t < self.timestep_per_batch:
             ep_reward = []
 
-            obs = self.env.reset()[0]
+            obs = self.env.reset()
             done = False
             for ep_t in range(self.max_timesteps_per_episode):
                 t += 1
@@ -135,7 +135,11 @@ class PPO_Agent:
         # Get action and log prob
         act_mean = self.actor(obs)
         dist = MultivariateNormal(act_mean, self.cov_mat)
+        # get sample from distribution within bounds
         act = dist.sample()
+        # ensure act is within bounds
+        act = torch.clamp(act, -1, 1)
+
         log_prob = dist.log_prob(act)
         # print(act.detach().numpy())
         return act.detach().numpy(), log_prob.detach()
@@ -197,7 +201,7 @@ import gym
 import sys
 sys.path.append("../environment")
 from reacher_env import ReacherEnv
-# env = ReacherEnv(False,True,False)
-env = gym.make("LunarLanderContinuous-v2")
+env = ReacherEnv(True,True,False)
+# env = gym.make("LunarLanderContinuous-v2")
 agent = PPO_Agent(env)
 agent.learn(100000)

@@ -50,7 +50,7 @@ class BaseEnv:
     
     def update_action_space(self):        
         # Torque array
-        action_bound = np.array([50, 50, 25, 25, 10, 10])
+        action_bound = np.array([50, 50, 32, 32, 32, 20])
         action_space = spaces.Box(-action_bound, action_bound, dtype=np.float32)
 
         return action_space
@@ -64,9 +64,9 @@ class BaseEnv:
         noise = 0.02
         joint_states = p.getJointStates(self.arm_id, self.joint_indices)
         qpos = np.array([j[0] for j in joint_states])
-        qpos += np.random.uniform(-noise, noise, 6)
+        # qpos += np.random.uniform(-noise, noise, 6)
         qvel = np.array([j[1] for j in joint_states])
-        qvel += np.random.uniform(-noise, noise, 6)
+        # qvel += np.random.uniform(-noise, noise, 6)
         obs = np.concatenate([qpos, qvel])
 
         goal_pos = np.array(p.getBasePositionAndOrientation(self.goal_id)[0])

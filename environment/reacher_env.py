@@ -6,14 +6,14 @@ import time
 from base_env import BaseEnv
 
 class ReacherEnv(BaseEnv):
-    def __init__(self, render=False, train=True, moving_goal=False, tolerance=0.01):
+    def __init__(self, render=False, train=True, moving_goal=False, tolerance=0.02):
         super().__init__(render=render, train=train, moving_goal=moving_goal, tolerance=tolerance)
         self.reset()
         
     def reset(self, goal_pos=None):
         # if goal_pos is None:
         #     goal_pos = self.gen_goal()
-        goal_pos = np.array([0.3, 0.2, 1.2])
+        goal_pos = np.array([0.5, 0.2, 0.7])
         self.reset_scene(goal_pos)
 
         obs = self.get_obs()[0]
@@ -23,16 +23,18 @@ class ReacherEnv(BaseEnv):
 
     def step(self, act):
         _ = None
-        # action = self.scale_action(act)
-        action = act
-        p.setJointMotorControlArray(bodyIndex=self.arm_id,
-                                    jointIndices=self.joint_indices,
-                                    controlMode=p.VELOCITY_CONTROL,
-                                    forces=np.zeros(6))
-        p.setJointMotorControlArray(bodyIndex=self.arm_id,
-                                    jointIndices=self.joint_indices,
-                                    controlMode=p.TORQUE_CONTROL,
-                                    forces=action)
+        action = self.scale_action(act)
+        for jtn in self.joint_indices:
+            p.setJointMotorControl2(self.arm_id, jtn, p.VELOCITY_CONTROL, force=0)
+            p.setJointMotorControl2(self.arm_id, jtn, p.TORQUE_CONTROL, force=action[jtn-1])
+        # p.setJointMotorControlArray(bodyIndex=self.arm_id,
+        #                             jointIndices=self.joint_indices,
+        #                             controlMode=p.VELOCITY_CONTROL,
+        #                             forces=np.zeros(6))
+        # p.setJointMotorControlArray(bodyIndex=self.arm_id,
+        #                             jointIndices=self.joint_indices,
+        #                             controlMode=p.TORQUE_CONTROL,
+        #                             forces=action)
         p.stepSimulation()
 
         obs = self.get_obs()[0]
@@ -54,13 +56,13 @@ class ReacherEnv(BaseEnv):
         # # sparse reward
         # if dist < self.dist_tolerance:
         #     done = True
-        #     reward_dist = 1
+        #     reward_dist = 10000
         # else:
         #     done = False
-        #     reward_dist = -1
+        #     reward_dist = -dist 
         # reward = reward_dist
         # # Action penalty
-        # reward -= 0.1 * np.square(action).sum()
+        # reward -= 0.01 * np.square(action).sum()
 
         # dense reward
         reward = -dist
