@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from memory import AgentMemory
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 
 
 class PPOController:

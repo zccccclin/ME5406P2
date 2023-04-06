@@ -45,7 +45,7 @@ class BaseEnv:
         p.loadURDF("table/table.urdf", basePosition=table_base_pos)
         self.goal_id = p.loadURDF('../assets/goal.urdf', goal_pos)
         self.arm_id = p.loadURDF("xarm/xarm6_robot_white.urdf", basePosition=arm_base_pos, useFixedBase=True,
-                                 physicsClientId=self.pc._client, flags=p.URDF_USE_SELF_COLLISION | p.URDF_USE_SELF_COLLISION_INCLUDE_PARENT)
+                                 flags=p.URDF_USE_SELF_COLLISION)
 
     
     def update_action_space(self):        
@@ -75,6 +75,6 @@ class BaseEnv:
         obs = np.concatenate([obs, ee_pos, goal_pos])
 
 
-        return obs, ee_pos
+        return (obs, ee_pos)
 
 

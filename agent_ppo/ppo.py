@@ -123,6 +123,9 @@ class PPO_Agent:
         batch_rtg = self.compute_rtg(batch_reward)
 
         # Convert to tensor
+        batch_obs = np.array(batch_obs)
+        batch_act = np.array(batch_act)
+        batch_log_prob = np.array(batch_log_prob)
         batch_obs = torch.tensor(batch_obs, dtype=torch.float)
         batch_act = torch.tensor(batch_act, dtype=torch.float)
         batch_log_prob = torch.tensor(batch_log_prob, dtype=torch.float)
@@ -201,7 +204,7 @@ import gym
 import sys
 sys.path.append("../environment")
 from reacher_env import ReacherEnv
-env = ReacherEnv(True,True,False)
+env = ReacherEnv(False,True,False)
 # env = gym.make("LunarLanderContinuous-v2")
 agent = PPO_Agent(env)
 agent.learn(100000)
