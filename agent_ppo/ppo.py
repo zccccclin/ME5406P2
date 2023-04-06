@@ -10,8 +10,8 @@ from model import ActorCritic
 class PPO_Agent:
     def __init__(self, env):
         # Initialize hyperparam
-        self.timestep_per_batch = 15000
-        self.max_timesteps_per_episode = 5000
+        self.timestep_per_batch = 3000
+        self.max_timesteps_per_episode = 1000
         self.gamma = 0.95
         self.n_updates_per_iteration = 5
         self.lr = 0.005
@@ -100,7 +100,7 @@ class PPO_Agent:
         while t < self.timestep_per_batch:
             ep_reward = []
 
-            obs = self.env.reset()
+            obs = self.env.reset()[0]
             done = False
             for ep_t in range(self.max_timesteps_per_episode):
                 t += 1
@@ -108,7 +108,8 @@ class PPO_Agent:
 
                 # Step
                 act, log_prob = self.get_act(obs)
-                obs, reward, done, _, __= self.env.step(act)
+                obs, reward, done, _= self.env.step(act)
+                obs = obs[0]
                 ep_reward.append(reward)
                 batch_act.append(act)
                 batch_log_prob.append(log_prob)
@@ -204,7 +205,6 @@ import gym
 import sys
 sys.path.append("../environment")
 from reacher_env import ReacherEnv
-env = ReacherEnv(False,True,False)
-# env = gym.make("LunarLanderContinuous-v2")
+env = ReacherEnv(render=False, moving_goal=False, train=True, tolerance=0.02)
 agent = PPO_Agent(env)
 agent.learn(100000)

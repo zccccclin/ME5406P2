@@ -72,13 +72,15 @@ class PPOController:
         for i_episode in range(1, self.num_episodes + 1):
             print(i_episode)
             state = self.env.reset()
+            state = state[0]
             rewards = []
             surrogates = []
             t = 0
             while t < 5000:
                 t+=1
                 action, log_probability = self.act(state)
-                next_state, reward, done, info, _ = self.env.step(action)
+                next_state, reward, done, info = self.env.step(action)
+                next_state = next_state[0]
                 self.memory.add(
                     (state, action, log_probability, next_state, reward, done))
                 state = next_state
@@ -462,7 +464,7 @@ class Config:
     
 sys.path.append("../environment")
 from reacher_env import ReacherEnv
-env = ReacherEnv(False,True,False)
+env = ReacherEnv(False,False,False)
 # env = gym.make("LunarLanderContinuous-v2")
 agent = PPOController(env,"trial",Config(env.observation_space.shape[0],env.action_space.shape[0]))
 agent.solve()

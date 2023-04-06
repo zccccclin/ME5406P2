@@ -6,17 +6,18 @@ import time
 from base_env import BaseEnv
 
 class ReacherEnv(BaseEnv):
-    def __init__(self, render=False, train=True, moving_goal=False, tolerance=0.02):
-        super().__init__(render=render, train=train, moving_goal=moving_goal, tolerance=tolerance)
-        self.reset()
+    def __init__(self, render=False, moving_goal=False, train=True, tolerance=0.02):
+        super().__init__(render=render, train=train, tolerance=tolerance)
+        self.moving_goal = moving_goal
         
     def reset(self, goal_pos=None):
-        # if goal_pos is None:
-        #     goal_pos = self.gen_goal()
-        goal_pos = np.array([0.5, 0.2, 0.7])
+        if self.moving_goal:
+            goal_pos = self.gen_goal()
+        else:
+            goal_pos = np.array([0.5, 0.3, 0.7])
         self.reset_scene(goal_pos)
 
-        obs = self.get_obs()[0]
+        obs = self.get_obs()
         self.ep_reward = 0
         self.ep_len = 0
         return obs
@@ -28,19 +29,13 @@ class ReacherEnv(BaseEnv):
         # for jtn in self.joint_indices:
         #     p.setJointMotorControl2(self.arm_id, jtn, p.POSITION_CONTROL, targetPosition=joint_state_target[jtn-1], force=10)
         
-        act = self.scale_action(act)
+        scaled_act = self.scale_action(act)
         for jtn in self.joint_indices:
             p.setJointMotorControl2(self.arm_id, jtn, p.VELOCITY_CONTROL, force=0)
-            p.setJointMotorControl2(self.arm_id, jtn, p.TORQUE_CONTROL, force=act[jtn-1])
-        # p.setJointMotorControlArray(bodyIndex=self.arm_id,
-        #                             jointIndices=self.joint_indices,
-        #                             controlMode=p.VELOCITY_CONTROL,
-        #                             forces=np.zeros(6))
-        # p.setJointMotorControlArray(bodyIndex=self.arm_id,
-        #                             jointIndices=self.joint_indices,
-        #                             controlMode=p.TORQUE_CONTROL,
-        #                             forces=action)
+            p.setJointMotorControl2(self.arm_id, jtn, p.TORQUE_CONTROL, force=scaled_act[jtn-1])
         p.stepSimulation()
+        if self.testing:
+            time.sleep(0.05)
 
         obs = self.get_obs()
         goal_pos = np.array(p.getBasePositionAndOrientation(self.goal_id)[0])
@@ -53,29 +48,28 @@ class ReacherEnv(BaseEnv):
                 "reward": reward,
                 "dist": dist}
         
-        return obs[0], reward, done, info
+        return obs, reward, done, info
 
     def compute_reward(self, ee_pos, goal_pos, action):
         dist = np.linalg.norm(ee_pos - goal_pos)
-
         # sparse reward
-        # if dist < self.dist_tolerance:
-        #     done = True
-        #     reward_dist = 1
-        # else:
-        #     done = False
-        #     reward_dist = -1 
-        # reward = reward_dist
-        # # Action penalty
-        # reward -= 0.01 * np.square(action).sum()
-
-        # dense reward
-        reward = -dist
         if dist < self.dist_tolerance:
-            reward = 1
             done = True
+            reward_dist = 1
         else:
             done = False
+            reward_dist = -dist 
+        reward = reward_dist
+        # Action penalty
+        reward -= 0.01 * np.square(action).sum()
+
+        # # dense reward
+        # reward = -dist
+        # if dist < self.dist_tolerance:
+        #     reward = 1
+        #     done = True
+        # else:
+        #     done = False
 
         return reward, dist, done
 
@@ -85,7 +79,4 @@ class ReacherEnv(BaseEnv):
         z = np.random.uniform(0.63,0.5+0.62)
         return np.array([x,y,z])
     
-    def action_space_sample(self):
-        act = np.random.uniform(-1, 1, self.act_dim)
-        return act
 
