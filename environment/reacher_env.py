@@ -22,7 +22,6 @@ class ReacherEnv(BaseEnv):
         return obs
 
     def step(self, act):
-        _ = None
         # js = p.getJointStates(self.arm_id, self.joint_indices)
         # qpos = np.array([j[0] for j in js])
         # joint_state_target = act*0.05 + qpos
@@ -54,7 +53,7 @@ class ReacherEnv(BaseEnv):
                 "reward": reward,
                 "dist": dist}
         
-        return obs[0], reward, done, info, _
+        return obs[0], reward, done, info
 
     def compute_reward(self, ee_pos, goal_pos, action):
         dist = np.linalg.norm(ee_pos - goal_pos)
