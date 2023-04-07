@@ -66,7 +66,7 @@ class DDPG_Agent:
             self.critic_target.eval()
 
             # Initialize action noise
-            self.action_noise = ActionNoise(-0., 0.5, 0.0)
+            self.action_noise = ActionNoise(-0., 0.5)
 
             # Replay memory
             self.memory = ReplayMemory(self.memory_capacity, act_dim=self.act_dim, obs_dim=self.obs_dim, goal_dim=self.goal_dim)
@@ -152,7 +152,8 @@ class DDPG_Agent:
             self.global_step += 1
             if iter >= self.warmup_iter:
                 for t_train in range(self.train_steps):
-                    actor_loss, critic_loss = self.update()
+                    batch = self.memory.sample(batch_size=self.batch_size)
+                    actor_loss, critic_loss = self.update(batch=batch)
                     iter_actor_loss.append(actor_loss)
                     iter_critic_loss.append(critic_loss)
             
@@ -173,7 +174,7 @@ class DDPG_Agent:
                 logger.dumpkvs()
 
             # Model saving
-            if (iter == 0 or iter >= self.warmup_iter) and iter % self.save_interval == 0 and logger.get_dir():
+            if (iter == 0 or iter >= self.warmup_iter) and self.save_interval and iter % self.save_interval == 0 and logger.get_dir():
                 mean_dist, success_rate = self.rollout()
                 logger.logkv('iter', iter)
                 logger.logkv('test/ro_steps', total_rollout_step)

@@ -12,13 +12,13 @@ class Actor(nn.Module):
         self.out = nn.Linear(hid3_dim, action_dim)
 
         # initialize weights
-        w1_size = self.h1.weight.data.size()[0]
+        w1_size = self.h1.weight.data.size()
         v = 1./np.sqrt(w1_size[0])
         self.h1.weight.data = torch.Tensor(w1_size).uniform_(-v, v)
-        w2_size = self.h2.weight.data.size()[0]
+        w2_size = self.h2.weight.data.size()
         v = 1./np.sqrt(w2_size[0])
         self.h2.weight.data = torch.Tensor(w2_size).uniform_(-v, v)
-        w3_size = self.h3.weight.data.size()[0]
+        w3_size = self.h3.weight.data.size()
         v = 1./np.sqrt(w3_size[0])
         self.h3.weight.data = torch.Tensor(w3_size).uniform_(-v, v)
         self.out.weight.data.uniform_(-0.003, 0.003)
@@ -40,13 +40,13 @@ class Critic(nn.Module):
         self.out = nn.Linear(hid3_dim, 1)
 
         # initialize weights
-        w1_size = self.h1.weight.data.size()[0]
+        w1_size = self.h1.weight.data.size()
         v = 1./np.sqrt(w1_size[0])
         self.h1.weight.data = torch.Tensor(w1_size).uniform_(-v, v)
-        w2_size = self.h2.weight.data.size()[0]
+        w2_size = self.h2.weight.data.size()
         v = 1./np.sqrt(w2_size[0])
         self.h2.weight.data = torch.Tensor(w2_size).uniform_(-v, v)
-        w3_size = self.h3.weight.data.size()[0]
+        w3_size = self.h3.weight.data.size()
         v = 1./np.sqrt(w3_size[0])
         self.h3.weight.data = torch.Tensor(w3_size).uniform_(-v, v)
         self.out.weight.data.uniform_(-0.003, 0.003)

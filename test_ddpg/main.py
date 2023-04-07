@@ -19,7 +19,7 @@ def main():
     parser.add_argument('--seed', help='random seed', type=int, default=1)
     parser.add_argument('--env', help='env to train', default='reacher', 
                         type=str)
-    parser.add_argument('--num_iters', type=int, default=50000)
+    parser.add_argument('--num_iters', type=int, default=100000)
     parser.add_argument('--warmup_iter', type=int, default=50)
     parser.add_argument('--save_interval', type=int, default=200,
                         help='save model every n iterations')
