@@ -40,10 +40,10 @@ class BaseEnv:
         p.setGravity(0, 0, -9.81)
         p.resetDebugVisualizerCamera(cameraDistance=1.5, cameraYaw=0, cameraPitch=-40, cameraTargetPosition=[0.55,-0.35,0.4])
         table_base_pos = [0.5, 0, 0]
-        arm_base_pos = [0, 0, 0.62]
+        arm_base_pos = [0, 0, 0.63]
         goal_pos = goal_pos if goal_pos is not None else [0, 0, 0]
         p.loadURDF("plane.urdf")
-        p.loadURDF("table/table.urdf", basePosition=table_base_pos)
+        self.table_id = p.loadURDF("table/table.urdf", basePosition=table_base_pos)
         self.goal_id = p.loadURDF('../assets/goal.urdf', goal_pos)
         self.arm_id = p.loadURDF("xarm/xarm6_robot_white.urdf", basePosition=arm_base_pos, useFixedBase=True,
                                  flags=p.URDF_USE_SELF_COLLISION)

@@ -10,11 +10,11 @@ class ReacherEnv(BaseEnv):
         super().__init__(render=render, train=train, tolerance=tolerance)
         self.moving_goal = moving_goal
         
-    def reset(self, goal_pos=None):
+    def reset(self, goal_pos=np.array([0.5, 0.3, 0.7])):
         if self.moving_goal:
             goal_pos = self.gen_goal()
         else:
-            goal_pos = np.array([0.5, 0.3, 0.7])
+            goal_pos = goal_pos
         self.reset_scene(goal_pos)
 
         obs = self.get_obs()
@@ -37,6 +37,9 @@ class ReacherEnv(BaseEnv):
         if self.testing:
             time.sleep(0.05)
 
+        # self.cont_table =p.getContactPoints(self.arm_id,self.table_id )
+        # self.cont_self = p.getContactPoints(self.arm_id,self.arm_id)
+
         obs = self.get_obs()
         goal_pos = np.array(p.getBasePositionAndOrientation(self.goal_id)[0])
         reward, dist, done = self.compute_reward(obs[1], goal_pos, act)
@@ -52,6 +55,10 @@ class ReacherEnv(BaseEnv):
 
     def compute_reward(self, ee_pos, goal_pos, action):
         dist = np.linalg.norm(ee_pos - goal_pos)
+        # if len(self.cont_self) > 0 or len(self.cont_table) > 0:
+        #     done = True
+        #     reward = -10
+        #     return reward, dist, done
         # sparse reward
         if dist < self.dist_tolerance:
             done = True
@@ -76,7 +83,7 @@ class ReacherEnv(BaseEnv):
     def gen_goal(self):
         x = np.random.uniform(0.2,0.5)
         y = np.random.uniform(-0.5,0.5)
-        z = np.random.uniform(0.63,0.5+0.62)
+        z = np.random.uniform(0.7,1.2)
         return np.array([x,y,z])
     
 
