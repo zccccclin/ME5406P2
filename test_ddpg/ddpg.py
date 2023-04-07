@@ -119,11 +119,11 @@ class DDPG:
         self.cuda()
 
     def test(self, render=False, record=True, slow_t=0):
-        reached, dist, r, succ_rate = self.rollout(render=render,
+        dist, succ_rate = self.rollout(render=render,
                                        record=record,
                                        slow_t=slow_t)
-        print('Final cube to goal distance: ', dist)
-        print('Final reward: ', r)
+        print('Final ee to goal distance: ', dist)
+        print('Success percentage: ', succ_rate, '%')
 
     def train(self):
         self.net_mode(train=True)
@@ -168,7 +168,7 @@ class DDPG:
                     self.obs_oms.update(new_obs)
                 obs = new_obs
             epoch_episode_rewards.append(episode_reward)
-            print(episode_reward, epoch)
+            # print(episode_reward, epoch)
             epoch_episode_steps.append(episode_step)
             if self.use_her:
                 for t in range(episode_step - self.k_future):
@@ -230,19 +230,26 @@ class DDPG:
                     self.save_interval and\
                     epoch % self.save_interval == 0 and \
                     logger.get_dir():
-                mean_final_dist_reached, mean_final_dist, final_r, succ_rate = self.rollout()
+                mean_final_dist, succ_rate = self.rollout()
                 logger.logkv('epoch', epoch)
                 logger.logkv('test/total_rollout_steps', total_rollout_steps)
                 logger.logkv('test/mean_final_dist', mean_final_dist)
                 logger.logkv('test/succ_rate', succ_rate)
 
-                tra_mean_dist_reached, tra_mean_dist, tra_final_r, tra_succ_rate = self.rollout(train_test=True)
-                logger.logkv('train/mean_final_dist_reached', tra_mean_dist_reached)
-                logger.logkv('train/mean_final_dist', tra_mean_dist)
-                logger.logkv('train/succ_rate', tra_succ_rate)
 
                 # self.log_model_weights()
                 logger.dumpkvs()
+                print(f"Mean distance: {round(mean_final_dist, 3)}, Success rate: {succ_rate * 100}" )
+
+                if mean_final_dist < self.closest_dist:
+                    self.closest_dist = mean_final_dist
+                    is_best = True
+                    print('*********************************************')
+                    print('saving model with best reward')
+                    print('*********************************************')
+                else:
+                    is_best = False
+                self.save_model(is_best=is_best, step=self.global_step)
                 
                 '''
                 if mean_final_dist_reached > 0.075:
@@ -260,13 +267,13 @@ class DDPG:
                     else:
                         is_best = False
                 '''
-                if final_r > self.best_reward:
-                    is_best =True
-                    self.best_reward = final_r
-                    print('saving model with best reward')
-                else:
-                    is_best = False
-                self.save_model(is_best=is_best, step=self.global_step)
+                # if final_r > self.best_reward:
+                #     is_best =True
+                #     self.best_reward = final_r
+                #     print('saving model with best reward')
+                # else:
+                #     is_best = False
+                # self.save_model(is_best=is_best, step=self.global_step)
 
     def train_net(self):
         batch_data = self.memory.sample(batch_size=self.batch_size)
@@ -395,39 +402,34 @@ class DDPG:
 
     def rollout(self, train_test=False, render=False, record=False, slow_t=0):
         done_num = 0
-        final_dist_reached = []
         final_dist = []
         episode_length = []
-        reward_list = []
-        for idx in range(10):
+        # reward_list = []
+        for idx in range(50):
             obs = self.env.reset()
-            total_r = 0
+            # total_r = 0
             for t_rollout in range(self.rollout_steps):
                 obs = obs[0].copy()
                 act = self.policy(obs, stochastic=False).flatten()
                 obs, r, done, info = self.env.step(act)
-                total_r += r
+                # total_r += r
                # if render:
                    # self.env.render()
                     #if slow_t > 0:
                       #  time.sleep(slow_t)
                 if done:
                     done_num += 1
-                    total_r += 5
+                    # total_r += 5
                     break
             if record:
                 print('dist: ', info['dist'])
-            final_dist_reached.append(info['dist'])
-            reward_list.append(total_r)
-
+            final_dist.append(info['dist'])
+            # reward_list.append(total_r)
             episode_length.append(t_rollout)
-        final_dist_reached = np.array(final_dist_reached)
         final_dist = np.array(final_dist)
-        mean_final_dist_reached = np.mean(final_dist_reached)
         mean_final_dist = np.mean(final_dist)
-        final_r = np.mean(reward_list)
-
-        succ_rate = done_num / float(10)
+        # final_r = np.mean(reward_list)
+        succ_rate = done_num / float(50)
         if record:
             with open('./test_data.json', 'w') as f:
                 json.dump(final_dist.tolist(), f)
@@ -444,7 +446,7 @@ class DDPG:
                   "".format(np.percentile(final_dist, 75)))
             print('Success rate:', succ_rate)
 
-        return mean_final_dist_reached, mean_final_dist, final_r, succ_rate
+        return mean_final_dist, succ_rate
 
     def log_model_weights(self):
         for name, param in self.actor.named_parameters():

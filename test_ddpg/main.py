@@ -19,7 +19,7 @@ def main():
     parser.add_argument('--seed', help='random seed', type=int, default=1)
     parser.add_argument('--env', help='env to train', default='reacher', 
                         type=str)
-    parser.add_argument('--num_iters', type=int, default=10000)
+    parser.add_argument('--num_iters', type=int, default=50000)
     parser.add_argument('--warmup_iter', type=int, default=50)
     parser.add_argument('--save_interval', type=int, default=200,
                         help='save model every n iterations')
@@ -112,7 +112,7 @@ def main():
         
         os.makedirs(log_dir, exist_ok=True)
     logger.configure(dir=log_dir, format_strs=['tensorboard', 'csv'])
-    env = ReacherEnv(False, False, False)
+    env = ReacherEnv(render=args.render, moving_goal=True, train=not args.test, tolerance=0.02)
     print('environment made')
     ddpg = DDPG(env=env, args=args)
     if args.test:
