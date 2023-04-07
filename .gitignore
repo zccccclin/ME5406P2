@@ -1,2 +1,8 @@
 /environment/__pycache__
 /agent_ppo/__pycache__
+/test_ddpg/__pycache__
+/agent_ddpg/__pycache__
+/test_ddpg/util/__pycache__
+/agent_ddpg/util/__pycache__
+/test_ddpg/data
+/agent_ddpg/data
