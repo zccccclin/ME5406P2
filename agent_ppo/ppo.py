@@ -22,8 +22,8 @@ class PPO_Agent:
         self.act_dim = env.action_space.shape[0]
 
         # Intialize Actor Critic
-        self.actor = ActorCritic("actor", self.obs_dim, self.act_dim, 64, 64)
-        self.critic = ActorCritic("critic", self.obs_dim, 1, 64, 64)
+        self.actor = ActorCritic("actor", self.obs_dim, self.act_dim, 128, 128)
+        self.critic = ActorCritic("critic", self.obs_dim, 1, 128, 128)
 
         # Initialize optimizer
         self.actor_optim = Adam(self.actor.parameters(), lr=self.lr)
@@ -207,4 +207,4 @@ sys.path.append("../environment")
 from reacher_env import ReacherEnv
 env = ReacherEnv(render=False, moving_goal=False, train=True, tolerance=0.02)
 agent = PPO_Agent(env)
-agent.learn(100000)
+agent.learn(100000) 
