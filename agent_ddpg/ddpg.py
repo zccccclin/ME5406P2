@@ -5,7 +5,6 @@ from collections import deque
 import numpy as np
 import torch
 from torch import nn
-from torch import optim
 from torch.autograd import Variable
 
 from memory import ReplayMemory
@@ -111,7 +110,8 @@ class DDPG_Agent:
 
             for rollout_step in range(self.rollout_steps):
                 total_rollout_step += 1
-                if self.load_dir is None and iter < self.warmup_iter or np.random.rand() < self.random_action_prob:
+                rand = np.random.random(1)[0]
+                if self.load_dir is None and iter < self.warmup_iter or rand < self.random_action_prob:
                     action = np.random.uniform(-1., 1., self.act_dim).flatten()
                 else:
                     action = self.policy(obs).flatten()
@@ -132,20 +132,21 @@ class DDPG_Agent:
             
             iter_rew.append(eps_rew)
             iter_step.append(eps_step)
+            print(eps_rew, iter)
 
             # HindSight Experience Replay
             if self.use_her:
                 for t in range(eps_step - self.k):
-                    ob = eps_exp['obs'][t]
+                    obs = eps_exp['obs'][t]
                     action = eps_exp['act'][t]
-                    next_ob = eps_exp['next_obs'][t]
+                    next_obs = eps_exp['next_obs'][t]
                     achieved_goal = eps_exp['achieved_goal'][t]
                     k_future = np.random.choice(np.arange(t + 1, eps_step), self.k - 1, replace=False)
-                    k_future = np.concatenate([np.array([t]), k_future])
+                    k_future = np.concatenate((np.array([t]), k_future))
                     for i in k_future:
                         future_achieved_goal = eps_exp['achieved_goal'][i]
-                        her_obs = np.concatenate((ob[:-self.goal_dim], future_achieved_goal), axis=0)
-                        her_next_obs = np.concatenate((next_ob[:-self.goal_dim], future_achieved_goal), axis=0)
+                        her_obs = np.concatenate((obs[:-self.goal_dim], future_achieved_goal), axis=0)
+                        her_next_obs = np.concatenate((next_obs[:-self.goal_dim], future_achieved_goal), axis=0)
                         her_rew, _, done = self.env.compute_reward(achieved_goal.copy(), future_achieved_goal, action)
                         self.memory.append(her_obs, action, her_rew, her_next_obs, achieved_goal.copy(), done)
 
@@ -324,6 +325,7 @@ class DDPG_Agent:
         return action
     
     def init_optim(self, actor_critic, lr, weight_decay=0):
+        print(weight_decay)
         params = w_decay([actor_critic], weight_decay=weight_decay)
         optim = torch.optim.Adam(params, lr=lr, weight_decay=weight_decay)
         return optim        
