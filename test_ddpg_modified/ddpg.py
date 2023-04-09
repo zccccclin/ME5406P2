@@ -41,6 +41,7 @@ class DDPG:
 
         # Log and save params
         self.best_mean_dist = np.inf
+        self.best_mean_reward = -np.inf
         self.log_interval = args.log_interval
         self.save_interval = args.save_interval
         self.env_dir = os.path.join(args.save_dir, args.env)
@@ -239,11 +240,11 @@ class DDPG:
                 print(f"Mean distance: {round(mean_final_dist, 3)}, Mean reward: {round(mean_final_reward, 3)}, Success rate: {round(succ_rate * 100, 2)}" )
 
                 # Update best model by closest distance
-                if mean_final_dist < self.closest_dist:
-                    self.closest_dist = mean_final_dist
+                if mean_final_dist < self.best_mean_dist:
+                    self.best_mean_dist = mean_final_dist
                     is_best = True
                     print('*********************************************')
-                    print('saving model with best reward')
+                    print('saving model with best mean distance')
                     print('*********************************************')
                 else:
                     is_best = False

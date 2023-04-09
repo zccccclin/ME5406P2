@@ -168,7 +168,7 @@ class DDPG:
                     self.obs_oms.update(new_obs)
                 obs = new_obs
             epoch_episode_rewards.append(episode_reward)
-            # print(episode_reward, epoch)
+            print(episode_reward, epoch)
             epoch_episode_steps.append(episode_step)
             if self.use_her:
                 for t in range(episode_step - self.k_future):
@@ -237,7 +237,7 @@ class DDPG:
                 logger.logkv('test/succ_rate', succ_rate)
 
 
-                # self.log_model_weights()
+                # self.log_model_weights()f
                 logger.dumpkvs()
                 print(f"Mean distance: {round(mean_final_dist, 3)}, Success rate: {succ_rate * 100}" )
 

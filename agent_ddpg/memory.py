@@ -62,9 +62,9 @@ class ReplayMemory(object):
         return result
     
     def append(self, obs0, act, rew, obs1, achieved_goal, done):
-        self.obs0.add(obs0)
-        self.obs1.add(obs1)
-        self.act.add(act)
-        self.rew.add(rew)
-        self.done.add(done)
-        self.achieved_goal.add(achieved_goal)
+        self.obs0.append(obs0)
+        self.obs1.append(obs1)
+        self.act.append(act)
+        self.rew.append(rew)
+        self.done.append(done)
+        self.achieved_goal.append(achieved_goal)

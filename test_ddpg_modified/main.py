@@ -81,7 +81,7 @@ def main():
     
     # Environment setup
     if args.env == 'reacher':
-        env = ReacherEnv(render=args.render, moving_goal=args.moving_goal, train=not args.test, tolerance=args.tolerance)
+        env = ReacherEnv(render=args.render, moving_goal=args.moving_goal, train=not args.test, tolerance=args.tol)
     print('environment made')
     ddpg = DDPG(env=env, args=args)
     if args.test:
