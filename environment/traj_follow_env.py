@@ -87,15 +87,15 @@ class TrajFollowEnv(BaseEnv):
 
         if dist < self.dist_tolerance:
             done = False
-            reward_dist = 1
+            reward_dist = 0.1
             self.in_range_step += 1
         else:
             done = False
             reward_dist = -1
             self.in_range_step = 0
-        if self.in_range_step > 100:
+        if self.in_range_step > 190:
             done = True
-            reward_dist = 10
+            reward_dist = 1
 
         reward = reward_dist
         reward -= 0.1 * np.square(action).sum()
