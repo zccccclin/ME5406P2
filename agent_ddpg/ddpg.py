@@ -252,23 +252,14 @@ class DDPG:
                 logger.dumpkvs()
                 print(f"Mean in range step: {mean_irs}, Mean reward: {round(mean_final_reward, 3)}, Success rate: {round(succ_rate * 100, 2)}" )
 
-                # Update best model by closest distance
+                # Update best model by closest distance or reward
                 if self.env_type == 'trajfollow':
-                    if self.best_mean_irs == 101 and mean_final_reward > self.best_mean_reward:
+                    if mean_final_reward > self.best_mean_reward:
                         self.best_mean_reward = mean_final_reward
                         is_best = True
                         print('*********************************************')
-                        print('Best in range steps reached')
                         print('saving model with best mean reward')
                         print('*********************************************')
-                    if mean_irs > self.best_mean_irs:
-                        self.best_mean_irs = mean_irs
-                        self.best_mean_reward = mean_final_reward
-                        is_best = True
-                        print('*********************************************')
-                        print('saving model with best in range steps')
-                        print('*********************************************')
-
                     else:
                         is_best = False
                     self.save_model(is_best=is_best, step=self.global_step)

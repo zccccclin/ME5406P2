@@ -105,7 +105,7 @@ class TrajFollowEnv(BaseEnv):
         rand = np.random.randint(0,1)
         a = np.random.uniform(0.1, 0.25)
         b = np.random.uniform(0.1, 0.25)
-        if rand == 0:
+        if True:
             self.traj = generate_ellipse_trajectory(self.home_pos, a, b, 200)
         else:
             self.traj = generate_rectangular_trajectory(self.home_pos, a, b, 200)
