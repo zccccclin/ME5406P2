@@ -1,21 +1,25 @@
 import argparse
+import json
 import os
 import random
 import shutil
 from typing import Pattern, SupportsBytes
-import sys
-sys.path.append('../environment')
 import numpy as np
 import torch
-
-from ddpg import DDPG_Agent
+from ddpg import DDPG
 from util import logger
+import sys
+sys.path.append('../environment')
 from reacher_env import ReacherEnv
+
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--seed', help='random seed', type=int, default=1)
-    parser.add_argument('--env', type=str, default='reacher')
+    parser.add_argument('--seed', type=int, default=1)
+    parser.add_argument('--env', default='reacher', type=str)
+    parser.add_argument('--moving_goal', action='store_true')
+    parser.add_argument('--random_start', action='store_true')
+    parser.add_argument('--test_case_num', type=int, default=50)
     parser.add_argument('--num_iters', type=int, default=50000)
     parser.add_argument('--warmup_iter', type=int, default=50)
     parser.add_argument('--save_interval', type=int, default=200)
@@ -29,28 +33,34 @@ def main():
     parser.add_argument('--actor_lr', type=float, default=0.0001)
     parser.add_argument('--critic_lr', type=float, default=0.001)
     parser.add_argument('--critic_weight_decay', type=float, default=0.001)
-    parser.add_argument('--use_her', type=bool, default=True)
-    parser.add_argument('--k', type=int, default=4)
-    parser.add_argument('--gamma', type=float, default=0.99)
+    parser.add_argument('--use_her', action='store_true')
+    parser.add_argument('--k_future', type=int, default=4)
     parser.add_argument('--tau', type=float, default=0.001)
-    parser.add_argument('--tolerance', type=float, default=0.02)
-    parser.add_argument('--random_action_prob', type=float, default=0.1)
-    parser.add_argument('--memory_capacity', type=int, default=1e6)
+    parser.add_argument('--reward_scale', type=float, default=1)
+    parser.add_argument('--ou_noise_std', type=float, default=0.2)
+    parser.add_argument('--uniform_noise_high', type=float, default=0.5)
+    parser.add_argument('--uniform_noise_low', type=float, default=-0.)
+    parser.add_argument('--max_noise_dec_step', type=float, default=0.000)
+    parser.add_argument('--tol', type=float, default=0.02)
+    parser.add_argument('--random_prob', type=float, default=0.1)
+    parser.add_argument('--normal_noise_std', type=float, default=0.1)
+    parser.add_argument('--noise_type', default='uniform', choices=['uniform', 'ou_noise', 'gaussian'], type=str)
+    parser.add_argument('--memory_limit', type=int, default=1e6)
+    parser.add_argument('--gamma', type=float, default=0.99)
+    parser.add_argument('--ob_norm', type=bool, default=False)
+    parser.add_argument('--init_method', default='uniform', choices=['uniform', 'normal'], type=str)
+    parser.add_argument('--max_grad_norm', type=float, default=None)
     parser.add_argument('--save_dir', type=str, default='./data')
-    parser.add_argument('--load_dir', type=str, default=None)
     parser.add_argument('--test', action='store_true')
-    parser.add_argument('--resume', action='store_true')
-    parser.add_argument('--resume_iter', type=int, default=None)
-    parser.add_argument('--moving_goal', type=bool, default=True)
-    parser.add_argument('--test_case_num', type=int, default=50)
+    parser.add_argument('--resume', '-rt', action='store_true')
+    parser.add_argument('--load_dir', type=str, default=None)
+    parser.add_argument('--resume_step', '-rs', type=int, default=None)
     parser.add_argument('--render', action='store_true')
-    parser.add_argument('--gpu_id', type=str, default='0')
+    parser.add_argument('--gpu_id', default='0', type=str)
     args = parser.parse_args()
-
-    # Print GPU info
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_id
 
-    # set random seed
+    # Set random seed
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     random.seed(args.seed)
@@ -58,26 +68,27 @@ def main():
         torch.cuda.manual_seed(args.seed)
 
     # Logging setup
-    log_location = os.path.join(args.save_dir, args.env)
-    log_location = os.path.join(log_location, 'logs')
+    np.set_printoptions(precision=4, suppress=True)
+    log_dir = os.path.join(args.save_dir, args.env)
+    log_dir = os.path.join(log_dir, 'logs')
     if not args.test and not args.resume:
-        check = input('Are you sure you want to overwrite the log directory? [y/n] ')
-        if check == 'y':
+        dele = input("Are you sure you want to override model and log folders? (y/n)")
+        if dele == 'y':
             if os.path.exists(args.save_dir):
                 shutil.rmtree(args.save_dir)
-        os.makedirs(log_location, exist_ok=True)
-    logger.configure(dir=log_location, format_strs=['tensorboard', 'csv'])
+        os.makedirs(log_dir, exist_ok=True)
+    logger.configure(dir=log_dir, format_strs=['tensorboard', 'csv'])
+
 
     # Environment setup
     if args.env == 'reacher':
-        env = ReacherEnv(render=args.render, moving_goal=args.moving_goal, train=not args.test, tolerance=args.tolerance)
-
-    # Agent setup
-    agent = DDPG_Agent(env, args=args)
+        env = ReacherEnv(render=args.render, moving_goal=args.moving_goal, random_start=args.random_start, train=not args.test, tolerance=args.tol)
+    ddpg = DDPG(env=env, args=args)
     if args.test:
-        agent.test()
+        ddpg.test()
     else:
-        agent.train()
+        ddpg.train()
 
 if __name__ == '__main__':
     main()
+

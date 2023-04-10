@@ -35,7 +35,7 @@ class BaseEnv:
     def reset(self, arm_id=None):
         pass
 
-    def reset_scene(self, goal_pos=None):
+    def reset_scene(self, goal_pos=None, home_pose=None):
         p.resetSimulation()
         p.setGravity(0, 0, -9.81)
         p.resetDebugVisualizerCamera(cameraDistance=1.5, cameraYaw=0, cameraPitch=-40, cameraTargetPosition=[0.55,-0.35,0.4])
@@ -47,13 +47,22 @@ class BaseEnv:
         self.goal_id = p.loadURDF('../assets/goal.urdf', goal_pos)
         self.arm_id = p.loadURDF("xarm/xarm6_robot_white.urdf", basePosition=arm_base_pos, useFixedBase=True,
                                  flags=p.URDF_USE_SELF_COLLISION)
+        ll = [-3.142,-3.14,-3.142,-3.142,-3.142,-3.142]
+        #upper limits for null space (todo: set them to proper range)
+        ul = [3.142,0,3.142,3.142,3.142,3.142,3.142]
+        #joint ranges for null space (todo: set them to proper range)
+        
+        if home_pose is not None:
+            desired_joint_positions = p.calculateInverseKinematics(self.arm_id, 6, home_pose, [1,0,0,0], lowerLimits=ll, upperLimits=ul, residualThreshold=1e-5 )[:6]
+            for idx, pos in zip(self.joint_indices,desired_joint_positions):
+                p.resetJointState(self.arm_id, idx, pos)
         self.update_action_space()
 
     
     def update_action_space(self):        
         # Torque array for xarm6
         action_bound = np.array([50, 50, 32, 32, 32, 20])
-        self.action_space = action_space = spaces.Box(-action_bound, action_bound, dtype=np.float32)
+        self.action_space = spaces.Box(-action_bound, action_bound, dtype=np.float32)
 
     def scale_action(self, act):
         act_h = (self.action_space.high - self.action_space.low) / 2
@@ -77,4 +86,9 @@ class BaseEnv:
 
         return obs, ee_pos
 
-
+    def gen_goal(self):
+        x = np.random.uniform(0.2,0.5)
+        y = np.random.uniform(-0.5,0.5)
+        z = np.random.uniform(0.7,1.2)
+        return np.array([x,y,z])
+    

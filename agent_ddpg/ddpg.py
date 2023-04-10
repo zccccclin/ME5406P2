@@ -2,291 +2,348 @@ import json
 import os
 import time
 from collections import deque
+
 import numpy as np
 import torch
 from torch import nn
+from torch import optim
 from torch.autograd import Variable
 
-from memory import ReplayMemory
+import mutils
+from memory import Memory
 from model import Actor, Critic
+from mutils import OnlineMeanStd, safemean
+from noise import OrnsteinUhlenbeckActionNoise, UniformNoise, NormalActionNoise
 from util import logger
-from util.utilClass import ActionNoise
-from util.utilFunc import w_decay
 
-class DDPG_Agent:
+class DDPG:
     def __init__(self, env, args):
         # Environment variables
+        self.ob_dim = ob_dim = env.observation_space.shape[0]
+        self.ac_dim = ac_dim = env.action_space.shape[0]
+        self.goal_dim = goal_dim = env.goal_dim
         self.env = env
-        self.obs_space = env.observation_space
-        self.act_space = env.action_space
-        self.obs_dim = self.obs_space.shape[0]
-        self.act_dim = self.act_space.shape[0]
-        self.goal_dim = self.env.goal_dim
         
         # Hyperparameters
         self.num_iters = args.num_iters
-        self.warmup_iter = args.warmup_iter
-        self.random_action_prob = args.random_action_prob
+        self.random_prob = args.random_prob
         self.tau = args.tau
+        self.reward_scale = args.reward_scale
         self.gamma = args.gamma
         self.rollout_steps = args.rollout_steps
         self.batch_size = args.batch_size
         self.train_steps = args.train_steps
-        self.memory_capacity = args.memory_capacity
+        self.warmup_iter = args.warmup_iter
+        self.max_grad_norm = args.max_grad_norm
         self.use_her = args.use_her
-        self.k = args.k
-        self.tolerance = args.tolerance
+        self.k_future = args.k_future
         self.test_case_num = args.test_case_num
 
-
-        # Logging variables
+        # Log and save params
         self.best_mean_dist = np.inf
+        self.best_mean_reward = -np.inf
         self.log_interval = args.log_interval
         self.save_interval = args.save_interval
         self.env_dir = os.path.join(args.save_dir, args.env)
-        self.save_dir = os.path.join(self.env_dir, 'models')
-        os.makedirs(self.save_dir, exist_ok=True)
+        self.model_dir = os.path.join(self.env_dir, 'model')
         self.load_dir = args.load_dir
+        os.makedirs(self.model_dir, exist_ok=True)
         self.global_step = 0
 
-        # Actor-Critic model
-        self.actor = Actor(self.obs_dim, self.act_dim, args.hid1_dim, args.hid2_dim, args.hid3_dim)
-        self.critic = Critic(self.obs_dim, self.act_dim, args.hid1_dim, args.hid2_dim, args.hid3_dim)
+        # Actor-Crtic model setup
+        self.actor = Actor(ob_dim=ob_dim,
+                           act_dim=ac_dim,
+                           hid1_dim=args.hid1_dim,
+                           hid2_dim=args.hid2_dim,
+                           hid3_dim=args.hid3_dim,
+                           init_method=args.init_method)
+        self.critic = Critic(ob_dim=ob_dim,
+                             act_dim=ac_dim,
+                             hid1_dim=args.hid1_dim,
+                             hid2_dim=args.hid2_dim,
+                             hid3_dim=args.hid3_dim,
+                             init_method=args.init_method)
         if args.resume or args.test or args.load_dir is not None:
-            self.load_model(args.resume_iter, args.load_dir)
+            self.load_model(args.resume_step, load_dir=args.load_dir)
         if not args.test:
-            self.actor_target = Actor(self.obs_dim, self.act_dim, args.hid1_dim, args.hid2_dim, args.hid3_dim)
-            self.critic_target = Critic(self.obs_dim, self.act_dim, args.hid1_dim, args.hid2_dim, args.hid3_dim)
-            self.actor_optim = self.init_optim(self.actor, lr=args.actor_lr)
-            self.critic_optim = self.init_optim(self.critic, lr=args.critic_lr, weight_decay=args.critic_weight_decay)
+            self.actor_target = Actor(ob_dim=ob_dim,
+                                      act_dim=ac_dim,
+                                      hid1_dim=args.hid1_dim,
+                                      hid2_dim=args.hid2_dim,
+                                      hid3_dim=args.hid3_dim,
+                                      init_method=args.init_method)
+            self.critic_target = Critic(ob_dim=ob_dim,
+                                        act_dim=ac_dim,
+                                        hid1_dim=args.hid1_dim,
+                                        hid2_dim=args.hid2_dim,
+                                        hid3_dim=args.hid3_dim,
+                                        init_method=args.init_method)
+            self.actor_optim = self.construct_optim(self.actor,
+                                                    lr=args.actor_lr)
+            cri_w_decay = args.critic_weight_decay
+            self.critic_optim = self.construct_optim(self.critic,
+                                                     lr=args.critic_lr,
+                                                     weight_decay=cri_w_decay)
             self.hard_update(self.actor_target, self.actor)
             self.hard_update(self.critic_target, self.critic)
             self.actor_target.eval()
             self.critic_target.eval()
 
             # Initialize action noise
-            self.action_noise = ActionNoise(-0., 0.5)
+            if args.noise_type == 'ou_noise':
+                mu = np.zeros(ac_dim)
+                sigma = float(args.ou_noise_std) * np.ones(ac_dim)
+                self.action_noise = OrnsteinUhlenbeckActionNoise(mu=mu,
+                                                                 sigma=sigma)
+            elif args.noise_type == 'uniform':
+                low_limit = args.uniform_noise_low
+                high_limit = args.uniform_noise_high
+                dec_step = args.max_noise_dec_step
+                self.action_noise = UniformNoise(low_limit=low_limit,
+                                                 high_limit=high_limit,
+                                                 dec_step=dec_step)
+
+            elif args.noise_type == 'gaussian':
+                mu = np.zeros(ac_dim)
+                sigma = args.normal_noise_std * np.ones(ac_dim)
+                self.action_noise = NormalActionNoise(mu=mu,
+                                                      sigma=sigma)
 
             # Replay memory
-            self.memory = ReplayMemory(self.memory_capacity, act_dim=self.act_dim, obs_dim=self.obs_dim, goal_dim=self.goal_dim)
+            self.memory = Memory(limit=int(args.memory_limit),
+                                 action_shape=(int(ac_dim),),
+                                 observation_shape=(int(ob_dim),),
+                                 goal_shape=(int(goal_dim),))
             self.critic_loss = nn.MSELoss()
+            self.ob_norm = args.ob_norm
+            if self.ob_norm:
+                self.obs_oms = OnlineMeanStd(shape=(1, ob_dim))
+            else:
+                self.obs_oms = None
 
         # Enable CUDA
-        self.critic.cuda()
-        self.actor.cuda()
-        if not args.test:
-            self.critic_target.cuda()
-            self.actor_target.cuda()
-            self.critic_loss.cuda()
+        self.cuda()
 
-        # Print model information
-        print("Agent initialized")
-        print("HER enabled: ", self.use_her)
-        print("Moving target enabled: ", self.env.moving_goal)
-        print("Training test case num: ", self.test_case_num)
+        if not args.test:
+            mutils.print_green('\n----------Agent initialized----------')
+            mutils.print_green(f"HER enabled: {self.use_her}")
+            mutils.print_green(f"Training test case num: {self.test_case_num}")
+            mutils.print_green('---------------------------------------')
+        print('\n')
 
     def test(self, record=True):
-        mean_dist, success_rate = self.rollout(record=record)
-        return mean_dist, success_rate
-    
-    def train(self):
-        self.actor.train()
-        self.critic.train()
-        starttime = time.time()
-        iter_rew = deque(maxlen=1)
-        iter_step = deque(maxlen=1)
-        total_rollout_step = 0
+        dist, reward, succ_rate = self.rollout(record=record)
+        print('Final mean distance: ', dist)
+        print('Final mean reward: ', reward)
+        print('Success percentage: ', succ_rate, '%')
 
-        for iter in range(self.global_step, self.num_iters):
-            eps_rew = 0
-            eps_step = 0
+    def train(self):
+        self.net_mode(train=True)
+        tfirststart = time.time()
+        epoch_episode_rewards = deque(maxlen=1)
+        epoch_episode_steps = deque(maxlen=1)
+        total_rollout_steps = 0
+
+        for epoch in range(self.global_step, self.num_iters):
+            episode_reward = 0
+            episode_step = 0
             self.action_noise.reset()
             obs = self.env.reset()
             obs = obs[0]
-            iter_actor_loss = []
-            iter_critic_loss = []
+            epoch_actor_losses = []
+            epoch_critic_losses = []
             if self.use_her:
-                eps_exp = {'obs': [], 'act': [], 'rew': [], 'next_obs': [], 'achieved_goal': [], 'done': []}
-
-            for rollout_step in range(self.rollout_steps):
-                total_rollout_step += 1
+                ep_experi = {'obs': [], 'act': [], 'reward': [], 'new_obs': [], 'ach_goals': [], 'done': []}
+            
+            for t_rollout in range(self.rollout_steps):
+                total_rollout_steps += 1
                 rand = np.random.random(1)[0]
-                if self.load_dir is None and iter < self.warmup_iter or rand < self.random_action_prob:
-                    action = np.random.uniform(-1., 1., self.act_dim).flatten()
+                if self.load_dir is None and epoch < self.warmup_iter or rand < self.random_prob:
+                    act = self.random_action().flatten()
                 else:
-                    action = self.policy(obs).flatten()
-                next_obs, rew, done, info = self.env.step(action)
-                achieved_goal = next_obs[1].copy()
-                next_obs = next_obs[0].copy()
-                eps_rew += rew
-                eps_step += 1
-                self.memory.append(obs, action, rew, next_obs, achieved_goal, done)
+                    act = self.policy(obs).flatten()
+                new_obs, r, done, info = self.env.step(act)
+                ach_goals = new_obs[1].copy()
+                new_obs = new_obs[0].copy()
+                episode_reward += r
+                episode_step += 1
+                self.memory.append(obs, act, r * self.reward_scale, new_obs, ach_goals, done)
                 if self.use_her:
-                    eps_exp['obs'].append(obs)
-                    eps_exp['act'].append(action)
-                    eps_exp['rew'].append(rew)
-                    eps_exp['next_obs'].append(next_obs)
-                    eps_exp['achieved_goal'].append(achieved_goal)
-                    eps_exp['done'].append(done)
-                obs = next_obs
-            
-            iter_rew.append(eps_rew)
-            iter_step.append(eps_step)
-            print(eps_rew, iter)
+                    ep_experi['obs'].append(obs)
+                    ep_experi['act'].append(act)
+                    ep_experi['reward'].append(r * self.reward_scale)
+                    ep_experi['new_obs'].append(new_obs)
+                    ep_experi['ach_goals'].append(ach_goals)
+                    ep_experi['done'].append(done)
+                if self.ob_norm:
+                    self.obs_oms.update(new_obs)
+                obs = new_obs
 
-            # HindSight Experience Replay
+            epoch_episode_rewards.append(episode_reward)
+            epoch_episode_steps.append(episode_step)
+            #print(episode_reward, epoch)
+
+            # Hindsight exp replay
             if self.use_her:
-                for t in range(eps_step - self.k):
-                    obs = eps_exp['obs'][t]
-                    action = eps_exp['act'][t]
-                    next_obs = eps_exp['next_obs'][t]
-                    achieved_goal = eps_exp['achieved_goal'][t]
-                    k_future = np.random.choice(np.arange(t + 1, eps_step), self.k - 1, replace=False)
-                    k_future = np.concatenate((np.array([t]), k_future))
-                    for i in k_future:
-                        future_achieved_goal = eps_exp['achieved_goal'][i]
-                        her_obs = np.concatenate((obs[:-self.goal_dim], future_achieved_goal), axis=0)
-                        her_next_obs = np.concatenate((next_obs[:-self.goal_dim], future_achieved_goal), axis=0)
-                        her_rew, _, done = self.env.compute_reward(achieved_goal.copy(), future_achieved_goal, action)
-                        self.memory.append(her_obs, action, her_rew, her_next_obs, achieved_goal.copy(), done)
-
-            self.global_step += 1
-            if iter >= self.warmup_iter:
-                for t_train in range(self.train_steps):
-                    batch = self.memory.sample(batch_size=self.batch_size)
-                    actor_loss, critic_loss = self.update(batch=batch)
-                    iter_actor_loss.append(actor_loss)
-                    iter_critic_loss.append(critic_loss)
+                for t in range(episode_step - self.k_future):
+                    ob = ep_experi['obs'][t]
+                    act = ep_experi['act'][t]
+                    new_ob = ep_experi['new_obs'][t]
+                    ach_goal = ep_experi['ach_goals'][t]
+                    k_futures = np.random.choice(np.arange(t + 1, episode_step), self.k_future - 1, replace=False)
+                    k_futures = np.concatenate((np.array([t]), k_futures))
+                    for future in k_futures:
+                        new_goal = ep_experi['ach_goals'][future]
+                        her_ob = np.concatenate((ob[:-self.goal_dim], new_goal), axis=0)
+                        her_new_ob = np.concatenate((new_ob[:-self.goal_dim], new_goal), axis=0)
+                        res = self.env.compute_reward(ach_goal.copy(), new_goal, act)
+                        her_reward, _, done = res
+                        self.memory.append(her_ob, act, her_reward * self.reward_scale, her_new_ob, ach_goal.copy(), done)
             
+            # Update
+            self.global_step += 1
+            if epoch >= self.warmup_iter:
+                for t_train in range(self.train_steps):
+                    act_loss, cri_loss = self.train_net()
+                    epoch_critic_losses.append(cri_loss)
+                    epoch_actor_losses.append(act_loss)
+
             # Log saving
-            if iter % self.log_interval == 0:
-                time_now = time.time()
-                log = {}
-                log['iter'] = iter
-                log['ro_steps'] = total_rollout_step
-                log['return'] = np.mean([rew for rew in iter_rew])
-                log['steps'] = np.mean([step for step in iter_step])
-                if iter > self.warmup_iter:
-                    log['actor_loss'] = np.mean(iter_actor_loss)
-                    log['critic_loss'] = np.mean(iter_critic_loss)
-                log['time_elapsed'] = time_now - starttime
-                for k, v in log.items():
-                    logger.logkv(k, v)
+            if epoch % self.log_interval == 0:
+                tnow = time.time()
+                stats = {}
+                if self.ob_norm:
+                    stats['ob_oms_mean'] = safemean(self.obs_oms.mean.numpy())
+                    stats['ob_oms_std'] = safemean(self.obs_oms.std.numpy())
+                stats['total_rollout_steps'] = total_rollout_steps
+                stats['rollout_return'] = safemean([rew for rew in epoch_episode_rewards])
+                stats['rollout_ep_steps'] = safemean([l for l in epoch_episode_steps])
+                if epoch >= self.warmup_iter:
+                    stats['actor_loss'] = np.mean(epoch_actor_losses)
+                    stats['critic_loss'] = np.mean(epoch_critic_losses)
+                stats['epoch'] = epoch
+                stats['actor_lr'] = self.actor_optim.param_groups[0]['lr']
+                stats['critic_lr'] = self.critic_optim.param_groups[0]['lr']
+                stats['time_elapsed'] = tnow - tfirststart
+                for name, value in stats.items():
+                    logger.logkv(name, value)
                 logger.dumpkvs()
 
             # Model saving
-            if (iter == 0 or iter >= self.warmup_iter) and self.save_interval and iter % self.save_interval == 0 and logger.get_dir():
-                mean_dist, success_rate = self.rollout()
-                logger.logkv('iter', iter)
-                logger.logkv('test/ro_steps', total_rollout_step)
-                logger.logkv('test/mean_dist', mean_dist)
-                logger.logkv('test/success_rate', success_rate)
-                
-                # train_mean_dist, train_success_rate = self.rollout(train=True)
-                # logger.logkv('train/mean_dist', train_mean_dist)
-                # logger.logkv('train/success_rate', train_success_rate)
-
+            if (epoch == 0 or epoch >= self.warmup_iter) and self.save_interval and epoch % self.save_interval == 0 and logger.get_dir():
+                mean_final_dist, mean_final_reward, succ_rate = self.rollout()
+                logger.logkv('epoch', epoch)
+                logger.logkv('total_rollout_steps', total_rollout_steps)
+                logger.logkv('mean_final_dist', mean_final_dist)
+                logger.logkv('succ_rate', succ_rate)
+                # self.log_model_weights()
                 logger.dumpkvs()
-                print(f"Mean distance: {round(mean_dist, 3)}, Success rate: {round(success_rate * 100, 2)}" )
+                print(f"Mean distance: {round(mean_final_dist, 3)}, Mean reward: {round(mean_final_reward, 3)}, Success rate: {round(succ_rate * 100, 2)}" )
 
-                if mean_dist < self.best_mean_dist:
-                    self.best_mean_dist = mean_dist
-                    best = True
+                # Update best model by closest distance
+                if mean_final_dist < self.best_mean_dist:
+                    self.best_mean_dist = mean_final_dist
+                    is_best = True
                     print('*********************************************')
-                    print('saving model with closes mean dist')
+                    print('saving model with best mean distance')
                     print('*********************************************')
                 else:
-                    best = False
-                self.save_model(best, step=self.global_step)
+                    is_best = False
+                self.save_model(is_best=is_best, step=self.global_step)
 
-    def update(self, batch):
-        for k, v in batch.items():
-            batch[k] = torch.from_numpy(v)
-        obs0_t = batch['obs0']
-        obs1_t = batch['obs1']
+    def train_net(self):
+        batch_data = self.memory.sample(batch_size=self.batch_size)
+        for key, value in batch_data.items():
+            batch_data[key] = torch.from_numpy(value)
+        obs0_t = batch_data['obs0']
+        obs1_t = batch_data['obs1']
+        obs0_t = self.normalize(obs0_t, self.obs_oms)
+        obs1_t = self.normalize(obs1_t, self.obs_oms)
         obs0 = Variable(obs0_t).float().cuda()
         with torch.no_grad():
-            obs1_var = Variable(obs1_t).float().cuda()
-        
-        rew = Variable(batch['rew']).float().cuda()
-        act = Variable(batch['act']).float().cuda()
-        done = Variable(batch['done']).float().cuda()
+            vol_obs1 = Variable(obs1_t).float().cuda()
 
-        critic_q_val = self.critic(obs0, act)
+        rewards = Variable(batch_data['rewards']).float().cuda()
+        actions = Variable(batch_data['actions']).float().cuda()
+        terminals = Variable(batch_data['terminals1']).float().cuda()
+
+        cri_q_val = self.critic(obs0, actions)
         with torch.no_grad():
-            target_act = self.actor_target(obs1_var)
-            target_q_val = self.critic_target(obs1_var, target_act)
-            target_q_label = rew
-            target_q_label += (1 - done) * self.gamma * target_q_val
+            target_net_act = self.actor_target(vol_obs1)
+            target_net_q_val = self.critic_target(vol_obs1, target_net_act)
+            # target_net_q_val.volatile = False
+            target_q_label = rewards
+            target_q_label += self.gamma * target_net_q_val * (1 - terminals)
             target_q_label = target_q_label.detach()
-        
+
         self.actor.zero_grad()
         self.critic.zero_grad()
-        critic_loss = self.critic_loss(critic_q_val, target_q_label)
-        critic_loss.backward()
+        cri_loss = self.critic_loss(cri_q_val, target_q_label)
+        cri_loss.backward()
+        if self.max_grad_norm is not None:
+            torch.nn.utils.clip_grad_norm(self.critic.parameters(),
+                                          self.max_grad_norm)
         self.critic_optim.step()
 
         self.critic.zero_grad()
         self.actor.zero_grad()
-        actor_act = self.actor(obs0)
-        actor_q_val = self.critic(obs0, actor_act)
-        actor_loss = -actor_q_val.mean()
-        actor_loss.backward()
+        net_act = self.actor(obs0)
+        net_q_val = self.critic(obs0, net_act)
+        act_loss = -net_q_val.mean()
+        act_loss.backward()
+
+        if self.max_grad_norm is not None:
+            torch.nn.utils.clip_grad_norm(self.actor.parameters(),
+                                          self.max_grad_norm)
         self.actor_optim.step()
 
         self.soft_update(self.actor_target, self.actor, self.tau)
         self.soft_update(self.critic_target, self.critic, self.tau)
-        return actor_loss.cpu().data.numpy(), critic_loss.cpu().data.numpy()
-    
-    def rollout(self, train=False, record=False):
-        test_cases = self.test_case_num
-        done_num = 0
-        dist_list = []
-        eps_len = []
-        for case in range(test_cases):
-            obs = self.env.reset()
-            for step in range(self.rollout_steps):
-                obs = obs[0].copy()
-                action = self.policy(obs, stochastic=False).flatten()
-                obs, rew, done, info = self.env.step(action)
-                if done:
-                    done_num += 1
-                    break
-            if record:
-                print('dist: ', info['dist'])
-            dist_list.append(info['dist'])
-            eps_len.append(step)
-        mean_dist = np.mean(np.array(dist_list))
-        success_rate = done_num / float(test_cases)
-        if record:
-            with open(self.env_dir + '/test_data.json', 'w') as f:
-                json.dump(dist_list, f)
-            print('Test cases result: ')
-            print(f'Min dist: {round(np.min(np.array(dist_list)),3)}, Max dist: {round(np.max(np.array(dist_list)),3)}.')
-            print(f'Mean dist: {round(mean_dist,3)}, Success rate: {round(success_rate,3)}.')
-        return mean_dist, success_rate
+        return act_loss.cpu().data.numpy(), cri_loss.cpu().data.numpy()
+
+    def normalize(self, x, stats):
+        if stats is None:
+            return x
+        return (x - stats.mean) / stats.std
+
+    def denormalize(self, x, stats):
+        if stats is None:
+            return x
+        return x * stats.std + stats.mean
+
+    def net_mode(self, train=True):
+        if train:
+            self.actor.train()
+            self.critic.train()
+        else:
+            self.actor.eval()
+            self.critic.eval()
 
     def load_model(self, step=None, load_dir=None):
-        save_dir = self.save_dir
+        model_dir = self.model_dir
         if load_dir is not None:
-            model_file = os.path.join(load_dir, 'best.pth')
+            ckpt_file = os.path.join(self.load_dir, 'best.pth')
         else:
             if step is None:
-                model_file = os.path.join(save_dir, 'best.pth')
+                ckpt_file = os.path.join(model_dir, 'best.pth')
             else:
-                model_file = os.path.join(save_dir, '{:08d}.pth'.format(step))
-        if not os.path.exists(model_file):
-            raise ValueError('Model file {} does not exist'.format(model_file))
-        
-        print("Loading model from {}".format(model_file))
-        checkpoint = torch.load(model_file)
+                ckpt_file = os.path.join(model_dir,
+                                         '{:08d}.pth'.format(step))
+        if not os.path.isfile(ckpt_file):
+            raise ValueError("No checkpoint found at '{}'".format(ckpt_file))
+        mutils.print_yellow('Loading checkpoint {}'.format(ckpt_file))
+        checkpoint = torch.load(ckpt_file)
         if load_dir is not None:
             actor_dict = self.actor.state_dict()
             critic_dict = self.critic.state_dict()
-            actor_load_dict = {k: v for k, v in checkpoint['actor_state_dict'].items() if k in actor_dict}
-            critic_load_dict = {k: v for k, v in checkpoint['critic_state_dict'].items() if k in critic_dict}
-            actor_dict.update(actor_load_dict)
-            critic_dict.update(critic_load_dict)
+            actor_pretrained_dict = {k: v for k, v in
+                                     checkpoint['actor_state_dict'].items()
+                                     if k in actor_dict}
+            critic_pretrained_dict = {k: v for k, v in
+                                      checkpoint['critic_state_dict'].items()
+                                      if k in critic_dict}
+            actor_dict.update(actor_pretrained_dict)
+            critic_dict.update(critic_pretrained_dict)
             self.actor.load_state_dict(actor_dict)
             self.critic.load_state_dict(critic_dict)
             self.global_step = 0
@@ -295,45 +352,140 @@ class DDPG_Agent:
             self.critic.load_state_dict(checkpoint['critic_state_dict'])
             self.global_step = checkpoint['global_step']
         if step is None:
-            print("Model is {}".format(checkpoint['model_num']))
+            mutils.print_yellow('Model ckpt step is: {}'
+                                ''.format(checkpoint['ckpt_step']))
 
         self.warmup_iter += self.global_step
-        print("Loading complete")
+        mutils.print_yellow('Checkpoint loaded...')
 
-    def save_model(self, best, step=None):
+    def save_model(self, is_best, step=None):
         if step is None:
             step = self.global_step
-        model_file = os.path.join(self.save_dir, '{:08d}.pth'.format(step))
-        data = {'model_num': step,
-                'global_step': self.global_step,
-                'actor_state_dict': self.actor.state_dict(),
-                'critic_state_dict': self.critic.state_dict(),
-                'actor_optim_state_dict': self.actor_optim.state_dict(),
-                'critic_optim_state_dict': self.critic_optim.state_dict()}
-        print("\033[93m {}\033[00m".format("Saving model: %s" % model_file))
-        torch.save(data, model_file)
-        if best:
-            torch.save(data, os.path.join(self.save_dir, 'best.pth'))
+        ckpt_file = os.path.join(self.model_dir,
+                                 '{:08d}.pth'.format(step))
+        data_to_save = {'ckpt_step': step,
+                        'global_step': self.global_step,
+                        'actor_state_dict': self.actor.state_dict(),
+                        'actor_optimizer': self.actor_optim.state_dict(),
+                        'critic_state_dict': self.critic.state_dict(),
+                        'critic_optimizer': self.critic_optim.state_dict()}
+
+        mutils.print_yellow('Saving checkpoint: %s' % ckpt_file)
+        torch.save(data_to_save, ckpt_file)
+        if is_best:
+            torch.save(data_to_save, os.path.join(self.model_dir,
+                                                  'best.pth'))
+
+    def rollout(self, record=False):
+        done_num = 0
+        final_dist = []
+        episode_length = []
+        reward_list = []
+        for idx in range(self.test_case_num):
+            obs = self.env.reset()
+            total_reward = 0
+            for t_rollout in range(self.rollout_steps):
+                obs = obs[0].copy()
+                act = self.policy(obs, stochastic=False).flatten()
+                obs, r, done, info = self.env.step(act)
+                total_reward += r
+                if done:
+                    done_num += 1
+                    break
+            dist = info['dist']
+            if record:
+                print(f'Test case {idx}: dist({dist}), reward({total_reward})')
+            final_dist.append(dist)
+            reward_list.append(total_reward)
+            episode_length.append(t_rollout)
+        final_dist = np.array(final_dist)
+        reward_list = np.array(reward_list)
+        mean_final_dist = np.mean(final_dist)
+        mean_final_reward = np.mean(reward_list)
+        succ_rate = done_num / float(self.test_case_num)
+        if record:
+            # with open(self.env_dir + '/test_data.json', 'w') as f:
+            #     json.dump(final_dist.tolist(), f)
+            print('\nTest cases results:')
+            print('---------------Distance---------------')
+            print("Minimum: {0:9.4f} Maximum: {1:9.4f}"
+                  "".format(np.min(final_dist), np.max(final_dist)))
+            print("Mean: {0:9.4f}".format(mean_final_dist))
+            print("Standard Deviation: {0:9.4f}".format(np.std(final_dist)))
+            print("Median: {0:9.4f}".format(np.median(final_dist)))
+            print("First quartile: {0:9.4f}"
+                  "".format(np.percentile(final_dist, 25)))
+            print("Third quartile: {0:9.4f}"
+                  "".format(np.percentile(final_dist, 75)))
+            print('\n---------------Reward---------------')
+            print("Minimum: {0:9.4f} Maximum: {1:9.4f}"
+                  "".format(np.min(reward_list), np.max(reward_list)))
+            print("Mean: {0:9.4f}".format(mean_final_reward))
+            print("Standard Deviation: {0:9.4f}".format(np.std(reward_list)))
+            print("Median: {0:9.4f}".format(np.median(reward_list)))
+            print("First quartile: {0:9.4f}"
+                  "".format(np.percentile(reward_list, 25)))
+            print("Third quartile: {0:9.4f}"
+                  "".format(np.percentile(reward_list, 75)))
+            print('\n')
+            print('Success rate:', succ_rate)
+            print('\n')
+        return mean_final_dist, mean_final_reward, succ_rate
+
+    def log_model_weights(self):
+        for name, param in self.actor.named_parameters():
+            logger.logkv('actor/' + name,
+                         param.clone().cpu().data.numpy())
+        for name, param in self.actor_target.named_parameters():
+            logger.logkv('actor_target/' + name,
+                         param.clone().cpu().data.numpy())
+        for name, param in self.critic.named_parameters():
+            logger.logkv('critic/' + name,
+                         param.clone().cpu().data.numpy())
+        for name, param in self.critic_target.named_parameters():
+            logger.logkv('critic_target/' + name,
+                         param.clone().cpu().data.numpy())
+
+    def random_action(self):
+        act = np.random.uniform(-1, 1, self.ac_dim)
+        return act
 
     def policy(self, obs, stochastic=True):
         self.actor.eval()
-        obs = Variable(torch.from_numpy(obs)).float().cuda().view(1, -1)
-        action = self.actor(obs).cpu().data.numpy()
+        ob = Variable(torch.from_numpy(obs)).float().cuda().view(1, -1)
+        act = self.actor(ob)
+        act = act.cpu().data.numpy()
         if stochastic:
-            action = self.action_noise(action)
+            act = self.action_noise(act)
         self.actor.train()
-        return action
-    
-    def init_optim(self, actor_critic, lr, weight_decay=0):
-        print(weight_decay)
-        params = w_decay([actor_critic], weight_decay=weight_decay)
-        optim = torch.optim.Adam(params, lr=lr, weight_decay=weight_decay)
-        return optim        
+        return act
 
-    def hard_update(self, target, source):
-        for target_param, param in zip(target.parameters(), source.parameters()):
-            target_param.data.copy_(param.data)
+    def cuda(self):
+        self.critic.cuda()
+        self.actor.cuda()
+        if hasattr(self, 'critic_target'):
+            self.critic_target.cuda()
+            self.actor_target.cuda()
+            self.critic_loss.cuda()
+
+    def construct_optim(self, net, lr, weight_decay=None):
+        if weight_decay is None:
+            weight_decay = 0
+        params = mutils.add_weight_decay([net],
+                                         weight_decay=weight_decay)
+        optimizer = optim.Adam(params,
+                               lr=lr,
+                               weight_decay=weight_decay)
+        return optimizer
 
     def soft_update(self, target, source, tau):
-        for target_param, param in zip(target.parameters(), source.parameters()):
-            target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
+        for target_param, param in zip(target.parameters(),
+                                       source.parameters()):
+            target_param.data.copy_(
+                target_param.data * (1.0 - tau) + param.data * tau
+            )
+
+    def hard_update(self, target, source):
+        for target_param, param in zip(target.parameters(),
+                                       source.parameters()):
+            target_param.data.copy_(param.data)

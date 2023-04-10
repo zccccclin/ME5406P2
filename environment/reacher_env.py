@@ -3,19 +3,33 @@ import numpy as np
 import pybullet as p
 import time
 
+
 from base_env import BaseEnv
 
 class ReacherEnv(BaseEnv):
-    def __init__(self, render=False, moving_goal=False, train=True, tolerance=0.02):
+    def __init__(self, render=False, moving_goal=False, random_start=False, train=True, tolerance=0.02):
         super().__init__(render=render, train=train, tolerance=tolerance)
         self.moving_goal = moving_goal
+        self.random_start = random_start
+
+        # Pritn variables
+        print("\033[92m {}\033[00m".format('\n----------Environment created----------'))
+        print("\033[92m {}\033[00m".format(f"Moving target: {self.moving_goal}"))
+        print("\033[92m {}\033[00m".format(f"Random start: {self.random_start}"))
+        print("\033[92m {}\033[00m".format(f'Distance tolerance: {self.dist_tolerance}'))
+        print("\033[92m {}\033[00m".format('-----------------------------------------\n'))
+
         
     def reset(self, goal_pos=np.array([0.5, 0.3, 0.7])):
         if self.moving_goal:
             goal_pos = self.gen_goal()
         else:
             goal_pos = goal_pos
-        self.reset_scene(goal_pos)
+        if self.random_start:
+            home_pose = self.gen_goal()
+        else:
+            home_pose = None
+        self.reset_scene(goal_pos, home_pose)
 
         obs = self.get_obs()
         self.ep_reward = 0
@@ -80,10 +94,5 @@ class ReacherEnv(BaseEnv):
 
         return reward, dist, done
 
-    def gen_goal(self):
-        x = np.random.uniform(0.2,0.5)
-        y = np.random.uniform(-0.5,0.5)
-        z = np.random.uniform(0.7,1.2)
-        return np.array([x,y,z])
-    
+
 

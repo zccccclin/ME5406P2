@@ -1,5 +1,5 @@
 import numpy as np
-from util.utilFunc import min2d
+
 
 class RingBuffer(object):
     def __init__(self, maxlen, shape, dtype='float32'):
@@ -31,40 +31,58 @@ class RingBuffer(object):
             raise RuntimeError()
         self.data[(self.start + self.length - 1) % self.maxlen] = v
 
-class ReplayMemory(object):
-    def __init__(self, memory_capacity, obs_dim, act_dim, goal_dim):
-        cap = int(memory_capacity)
-        self.obs0 = RingBuffer(cap, shape=(int(obs_dim),))
-        self.obs1 = RingBuffer(cap, shape=(int(obs_dim),))
-        self.act = RingBuffer(cap, shape=(int(act_dim),))
-        self.rew = RingBuffer(cap, shape=(1,))
-        self.done = RingBuffer(cap, shape=(1,))
-        self.achieved_goal = RingBuffer(cap, shape=(int(goal_dim),))
+
+def array_min2d(x):
+    x = np.array(x)
+    if x.ndim >= 2:
+        return x
+    return x.reshape(-1, 1)
+
+
+class Memory(object):
+    def __init__(self, limit, action_shape, observation_shape, goal_shape):
+        self.limit = limit
+        self.observations0 = RingBuffer(limit, shape=observation_shape)
+        self.actions = RingBuffer(limit, shape=action_shape)
+        self.rewards = RingBuffer(limit, shape=(1,))
+        self.terminals1 = RingBuffer(limit, shape=(1,))
+        self.observations1 = RingBuffer(limit, shape=observation_shape)
+        self.achieved_goals = RingBuffer(limit, shape=(3,))
 
     def sample(self, batch_size):
-        batch_index = np.random.random_integers(len(self.obs0) - 2, size=batch_size)
-        obs0_batch = self.obs0.get_batch(batch_index)
-        obs1_batch = self.obs1.get_batch(batch_index + 1)
-        act_batch = self.act.get_batch(batch_index)
-        rew_batch = self.rew.get_batch(batch_index)
-        done_batch = self.done.get_batch(batch_index)
-        achieved_goal_batch = self.achieved_goal.get_batch(batch_index)
+        # Draw such that we always have a proceeding element.
+        batch_idxs = np.random.random_integers(self.nb_entries - 2,
+                                               size=batch_size)
+
+        obs0_batch = self.observations0.get_batch(batch_idxs)
+        obs1_batch = self.observations1.get_batch(batch_idxs)
+        ach_goals = self.achieved_goals.get_batch(batch_idxs)
+        action_batch = self.actions.get_batch(batch_idxs)
+        reward_batch = self.rewards.get_batch(batch_idxs)
+        terminal1_batch = self.terminals1.get_batch(batch_idxs)
 
         result = {
-            "obs0": min2d(obs0_batch),
-            "obs1": min2d(obs1_batch),
-            "act": min2d(act_batch),
-            "rew": min2d(rew_batch),
-            "done": min2d(done_batch),
-            "achieved_goal": min2d(achieved_goal_batch)
+            'obs0': array_min2d(obs0_batch),
+            'obs1': array_min2d(obs1_batch),
+            'achieved_goal': array_min2d(ach_goals),
+            'rewards': array_min2d(reward_batch),
+            'actions': array_min2d(action_batch),
+            'terminals1': array_min2d(terminal1_batch),
         }
-
         return result
-    
-    def append(self, obs0, act, rew, obs1, achieved_goal, done):
-        self.obs0.append(obs0)
-        self.obs1.append(obs1)
-        self.act.append(act)
-        self.rew.append(rew)
-        self.done.append(done)
-        self.achieved_goal.append(achieved_goal)
+
+    def append(self, obs0, action, reward, obs1,
+               ach_goals, terminal1, training=True):
+        if not training:
+            return
+
+        self.observations0.append(obs0)
+        self.actions.append(action)
+        self.rewards.append(reward)
+        self.observations1.append(obs1)
+        self.achieved_goals.append(ach_goals)
+        self.terminals1.append(terminal1)
+
+    @property
+    def nb_entries(self):
+        return len(self.observations0)

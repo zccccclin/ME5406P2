@@ -1,5 +1,5 @@
 '''
-File taken from OPENAI BASELINES
+copy from openai/baselines
 '''
 import datetime
 import json
@@ -161,8 +161,8 @@ class TensorBoardOutputFormat(KVWriter):
         self.writer = SummaryWriter(log_dir=path)
 
     def writekvs(self, kvs):
-        assert 'iter' in kvs.keys()
-        step = int(kvs['iter'])
+        assert 'epoch' in kvs.keys()
+        step = int(kvs['epoch'])
         scalar_kvs = {}
         array_kvs = {}
         for k, v in kvs.items():
