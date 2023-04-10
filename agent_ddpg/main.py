@@ -11,6 +11,7 @@ from util import logger
 import sys
 sys.path.append('../environment')
 from reacher_env import ReacherEnv
+from traj_follow_env import TrajFollowEnv
 
 
 def main():
@@ -19,6 +20,7 @@ def main():
     parser.add_argument('--env', default='reacher', type=str)
     parser.add_argument('--moving_goal', action='store_true')
     parser.add_argument('--random_start', action='store_true')
+    parser.add_argument('--random_traj', action='store_true')
     parser.add_argument('--test_case_num', type=int, default=50)
     parser.add_argument('--num_iters', type=int, default=50000)
     parser.add_argument('--warmup_iter', type=int, default=50)
@@ -69,13 +71,13 @@ def main():
 
     # Logging setup
     np.set_printoptions(precision=4, suppress=True)
-    log_dir = os.path.join(args.save_dir, args.env)
-    log_dir = os.path.join(log_dir, 'logs')
+    save_dir = os.path.join(args.save_dir, args.env)
+    log_dir = os.path.join(save_dir, 'logs')
     if not args.test and not args.resume:
-        dele = input("Are you sure you want to override model and log folders? (y/n)")
+        dele = input(f"Are you sure you want to override {args.env} model and log folders? (y/n)")
         if dele == 'y':
-            if os.path.exists(args.save_dir):
-                shutil.rmtree(args.save_dir)
+            if os.path.exists(save_dir):
+                shutil.rmtree(save_dir)
         os.makedirs(log_dir, exist_ok=True)
     logger.configure(dir=log_dir, format_strs=['tensorboard', 'csv'])
 
@@ -83,6 +85,8 @@ def main():
     # Environment setup
     if args.env == 'reacher':
         env = ReacherEnv(render=args.render, moving_goal=args.moving_goal, random_start=args.random_start, train=not args.test, tolerance=args.tol)
+    elif args.env == 'trajfollow':
+        env = TrajFollowEnv(render=args.render, random_traj=args.random_traj, train=not args.test, tolerance=0.05)
     ddpg = DDPG(env=env, args=args)
     if args.test:
         ddpg.test()

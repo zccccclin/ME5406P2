@@ -5,19 +5,13 @@ import time
 
 from base_env import BaseEnv
 from env_util.traj_gen import generate_ellipse_trajectory, generate_rectangular_trajectory
-
 class TrajFollowEnv(BaseEnv):
     def __init__(self, render, train=True, random_traj=False, tolerance=0.05):
         super().__init__(render=render, train=train, tolerance=tolerance)
         self.random_traj = random_traj
         self.traj_step = 0
         self.in_range_step = 0
-        # Pritn variables
-        print("\033[92m {}\033[00m".format('\n----------Environment created----------'))
-        print("\033[92m {}\033[00m".format(f"Random Trajectory: {self.random_traj}"))
-        print("\033[92m {}\033[00m".format(f'Distance tolerance: {self.dist_tolerance}'))
-        print("\033[92m {}\033[00m".format('-----------------------------------------\n'))
-
+        
     def reset(self):
         self.home_pos = np.array([0.21, 0, 0.8])
         self.reset_scene(home_pos=self.home_pos, goal_pos=self.home_pos, goal_size='trajfollow')
@@ -28,7 +22,7 @@ class TrajFollowEnv(BaseEnv):
         else:
             self.traj = generate_ellipse_trajectory(self.home_pos, 0.2, 0.2, 400)
         self.traj = np.array(self.traj).T
-        obs = self.get_obs()
+        obs = self.get_obs
         self.ep_reward = 0
         self.ep_len = 0
         return obs
@@ -77,8 +71,7 @@ class TrajFollowEnv(BaseEnv):
         info = {"accumm_reward": self.ep_reward, 
                 "accumm_steps": self.ep_len,
                 "reward": reward,
-                "dist": dist,
-                "in_range_step": self.in_range_step}
+                "dist": dist}
         
         return obs, reward, done, info
 
@@ -87,25 +80,46 @@ class TrajFollowEnv(BaseEnv):
 
         if dist < self.dist_tolerance:
             done = False
-            reward_dist = 1
+            reward_dist = 0.1
             self.in_range_step += 1
         else:
             done = False
             reward_dist = -1
             self.in_range_step = 0
-        if self.in_range_step > 100:
+        if self.in_range_step > 30:
             done = True
-            reward_dist = 10
+            reward_dist = 1
+            self.in_range_step = 0
 
         reward = reward_dist
         reward -= 0.1 * np.square(action).sum()
         return reward, dist, done
-    
+
     def gen_traj(self):
         rand = np.random.randint(0,1)
+        print(rand)
         a = np.random.uniform(0.1, 0.25)
         b = np.random.uniform(0.1, 0.25)
         if rand == 0:
-            self.traj = generate_ellipse_trajectory(self.home_pos, a, b, 200)
+            self.traj = generate_ellipse_trajectory(self.home_pos, a, b, 400)
         else:
-            self.traj = generate_rectangular_trajectory(self.home_pos, a, b, 200)
+            self.traj = generate_rectangular_trajectory(self.home_pos, a, b, 400)
+
+
+
+
+def main():
+    env = TrajFollowEnv(random_traj=True, render=True)
+    env.reset()
+    while True:
+        action = np.random.uniform(-1., 1., env.action_space.shape[0])
+        o,r,d,i = env.step(action)
+        print(env.traj_step, d, i['dist'], env.in_range_step)
+        time.sleep(0.1)
+    
+    
+
+
+
+if __name__ == "__main__":
+    main()

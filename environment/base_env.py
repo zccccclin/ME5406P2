@@ -25,7 +25,6 @@ class BaseEnv:
         self.joint_indices = range(1, 7)
         self.goal_dim = 3
         self.obs_dim = self.get_obs()[0].size
-        print('Observation dim: ', self.obs_dim)
         high = np.inf * np.ones(self.obs_dim)
         self.observation_space = spaces.Box(-high, high, dtype=np.float32)
 
@@ -35,7 +34,7 @@ class BaseEnv:
     def reset(self, arm_id=None):
         pass
 
-    def reset_scene(self, goal_pos=None, home_pose=None):
+    def reset_scene(self, goal_pos=None, home_pos=None, goal_size='reacher'):
         p.resetSimulation()
         p.setGravity(0, 0, -9.81)
         p.resetDebugVisualizerCamera(cameraDistance=1.5, cameraYaw=0, cameraPitch=-40, cameraTargetPosition=[0.55,-0.35,0.4])
@@ -44,7 +43,10 @@ class BaseEnv:
         goal_pos = goal_pos if goal_pos is not None else [0, 0, 0]
         p.loadURDF("plane.urdf")
         self.table_id = p.loadURDF("table/table.urdf", basePosition=table_base_pos)
-        self.goal_id = p.loadURDF('../assets/goal.urdf', goal_pos)
+        if goal_size == 'reacher':
+            self.goal_id = p.loadURDF('../assets/goal.urdf', goal_pos)
+        elif goal_size == 'trajfollow':
+            self.goal_id = p.loadURDF('../assets/goal_traj.urdf', goal_pos)
         self.arm_id = p.loadURDF("xarm/xarm6_robot_white.urdf", basePosition=arm_base_pos, useFixedBase=True,
                                  flags=p.URDF_USE_SELF_COLLISION)
         ll = [-3.142,-3.14,-3.142,-3.142,-3.142,-3.142]
@@ -52,8 +54,8 @@ class BaseEnv:
         ul = [3.142,0,3.142,3.142,3.142,3.142,3.142]
         #joint ranges for null space (todo: set them to proper range)
         
-        if home_pose is not None:
-            desired_joint_positions = p.calculateInverseKinematics(self.arm_id, 6, home_pose, [1,0,0,0], lowerLimits=ll, upperLimits=ul, residualThreshold=1e-5 )[:6]
+        if home_pos is not None:
+            desired_joint_positions = p.calculateInverseKinematics(self.arm_id, 6, home_pos, [1,0,0,0], lowerLimits=ll, upperLimits=ul, residualThreshold=1e-5 )[:6]
             for idx, pos in zip(self.joint_indices,desired_joint_positions):
                 p.resetJointState(self.arm_id, idx, pos)
         self.update_action_space()

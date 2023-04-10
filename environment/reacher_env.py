@@ -26,10 +26,10 @@ class ReacherEnv(BaseEnv):
         else:
             goal_pos = goal_pos
         if self.random_start:
-            home_pose = self.gen_goal()
+            home_pos = self.gen_goal()
         else:
-            home_pose = None
-        self.reset_scene(goal_pos, home_pose)
+            home_pos = None
+        self.reset_scene(goal_pos=goal_pos, home_pos=home_pos)
 
         obs = self.get_obs()
         self.ep_reward = 0
