@@ -130,6 +130,7 @@ class DDPG:
             mutils.print_green('\n----------Agent initialized----------')
             mutils.print_green(f"HER enabled: {self.use_her}")
             mutils.print_green(f"Training test case num: {self.test_case_num}")
+            mutils.print_green(f"Training epochs: {args.num_iters}")
             mutils.print_green('---------------------------------------')
         print('\n')
 

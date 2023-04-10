@@ -59,34 +59,34 @@ def generate_rectangular_trajectory(start_coord, length, width, n_points):
 
 
 
-# Define ellipse parameters, number of points, and starting coordinate
-a = np.random.uniform(0.05, 0.35)
-b = np.random.uniform(0.05, 0.35)
-c = np.random.uniform(0.1, 0.5)
-n_points = 2000
-start_coord = np.array([0.3, 0, 1])
+# # Define ellipse parameters, number of points, and starting coordinate
+# a = np.random.uniform(0.05, 0.35)
+# b = np.random.uniform(0.05, 0.35)
+# c = np.random.uniform(0.1, 0.5)
+# n_points = 2000
+# start_coord = np.array([0.3, 0, 1])
 
-# Generate ellipse trajectory starting at start_coord
-#points_3d = generate_ellipse_trajectory(start_coord, a, b, n_points)
-points_3d = generate_rectangular_trajectory(start_coord, b, a, n_points)
-print(points_3d)
-# Create 3D plot
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
+# # Generate ellipse trajectory starting at start_coord
+# #points_3d = generate_ellipse_trajectory(start_coord, a, b, n_points)
+# points_3d = generate_rectangular_trajectory(start_coord, b, a, n_points)
+# print(points_3d)
+# # Create 3D plot
+# fig = plt.figure()
+# ax = fig.add_subplot(111, projection='3d')
 
-# Plot ellipse points
-ax.scatter(points_3d[0], points_3d[1], points_3d[2], label='Trajectory', s=1)
+# # Plot ellipse points
+# ax.scatter(points_3d[0], points_3d[1], points_3d[2], label='Trajectory', s=1)
 
-# Plot starting coordinate as a red sphere
-ax.scatter(start_coord[0], start_coord[1], start_coord[2], s=100, color='r')
+# # Plot starting coordinate as a red sphere
+# ax.scatter(start_coord[0], start_coord[1], start_coord[2], s=100, color='r')
 
-# Set plot limits and labels
-ax.set_xlim(0.3, 0.7+0.3)
-ax.set_ylim(-0.6, 0.6)
-ax.set_zlim(0.8, 1.6)
-ax.set_xlabel('X')
-ax.set_ylabel('Y')
-ax.set_zlabel('Z')
+# # Set plot limits and labels
+# ax.set_xlim(0.3, 0.7+0.3)
+# ax.set_ylim(-0.6, 0.6)
+# ax.set_zlim(0.8, 1.6)
+# ax.set_xlabel('X')
+# ax.set_ylabel('Y')
+# ax.set_zlabel('Z')
 
-# Show plot
-plt.show()
+# # Show plot
+# plt.show()
