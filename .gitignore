@@ -1,5 +1,5 @@
 /environment/__pycache__
-/environment/util/__pycache__
+/environment/env_util/__pycache__
 /agent_ppo/__pycache__
 /test_ddpg/__pycache__
 /agent_ddpg/__pycache__
