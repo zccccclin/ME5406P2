@@ -32,30 +32,30 @@ def generate_rectangular_trajectory(start_coord, length, width, n_points):
     side1_n_points = int(n_points * length / (length + width)) // 2
     side2_n_points = int(n_points * width / (length + width)) // 2  
     # Generate x, y coordinates
-    x1 = np.linspace(start_coord[0], start_coord[0] + length / 2, num=side1_n_points // 2)
-    y1 = np.zeros_like(x1) + start_coord[1]
-    z1 = np.zeros_like(x1) + start_coord[2]
+    y1 = np.linspace(start_coord[0], start_coord[0] + length / 2, num=side1_n_points // 2)
+    x1 = np.zeros_like(y1) + start_coord[1]
+    z1 = np.zeros_like(y1) + start_coord[2]
     side1 = np.column_stack([x1, y1, z1])
-    y2 = np.linspace(start_coord[1], start_coord[1] + width, num=side2_n_points)
-    x2 = np.zeros_like(y2) + start_coord[0] + length / 2
-    z2 = np.zeros_like(y2) + start_coord[2]
+    x2 = np.linspace(start_coord[1], start_coord[1] + width, num=side2_n_points)
+    y2 = np.zeros_like(x2) + start_coord[0] + length / 2
+    z2 = np.zeros_like(x2) + start_coord[2]
     side2 = np.column_stack([x2, y2, z2])
-    x3 = np.linspace(start_coord[0] + length / 2, start_coord[0] - length / 2, num=side1_n_points)
-    y3 = np.zeros_like(x3) + start_coord[1] + width 
-    z3 = np.zeros_like(x3) + start_coord[2]
+    y3 = np.linspace(start_coord[0] + length / 2, start_coord[0] - length / 2, num=side1_n_points)
+    x3 = np.zeros_like(y3) + start_coord[1] + width 
+    z3 = np.zeros_like(y3) + start_coord[2]
     side3 = np.column_stack([x3, y3, z3])
-    y4 = np.linspace(start_coord[1] + width, start_coord[1], num=side2_n_points)
-    x4 = np.zeros_like(y4) + start_coord[0] - length / 2
-    z4 = np.zeros_like(y4) + start_coord[2]
+    x4 = np.linspace(start_coord[1] + width, start_coord[1], num=side2_n_points)
+    y4 = np.zeros_like(x4) + start_coord[0] - length / 2
+    z4 = np.zeros_like(x4) + start_coord[2]
     side4 = np.column_stack([x4, y4, z4])
-    x5 = np.linspace(start_coord[0] - length / 2, start_coord[0] , num=side1_n_points // 2)
-    y5 = np.zeros_like(x5) + start_coord[1]
-    z5 = np.zeros_like(x5) + start_coord[2]
+    y5 = np.linspace(start_coord[0] - length / 2, start_coord[0] , num=side1_n_points // 2)
+    x5 = np.zeros_like(y5) + start_coord[1]
+    z5 = np.zeros_like(y5) + start_coord[2]
     side5 = np.column_stack([x5, y5, z5])
     points_3d = np.concatenate([side1, side2, side3, side4, side5])
     points_3d = points_3d.T
-    # print(points_3d.shape)
-    return points_3d
+    points_3d_shifted = points_3d - points_3d[:,0].reshape(-1,1) + start_coord.reshape(-1,1)
+    return points_3d_shifted
 
 
 
@@ -63,13 +63,13 @@ def generate_rectangular_trajectory(start_coord, length, width, n_points):
 # a = np.random.uniform(0.05, 0.35)
 # b = np.random.uniform(0.05, 0.35)
 # c = np.random.uniform(0.1, 0.5)
-# n_points = 2000
+# n_points = 200
 # start_coord = np.array([0.3, 0, 1])
 
 # # Generate ellipse trajectory starting at start_coord
 # #points_3d = generate_ellipse_trajectory(start_coord, a, b, n_points)
 # points_3d = generate_rectangular_trajectory(start_coord, b, a, n_points)
-# print(points_3d)
+# print(points_3d.shape)
 # # Create 3D plot
 # fig = plt.figure()
 # ax = fig.add_subplot(111, projection='3d')
