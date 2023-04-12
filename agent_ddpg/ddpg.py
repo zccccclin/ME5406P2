@@ -433,7 +433,7 @@ class DDPG:
                     print(f'Test case {idx}: dist({dist}), reward({total_reward}),'
                           f' in_range_step({in_range_step})')
                 else:
-                    print(f'Test case {idx}: dist({dist}), reward({total_reward})')
+                    print(f'Test case {idx}: dist({dist}), ori_err({ori_err}), reward({total_reward})')
             final_dist.append(dist)
             final_ori_err.append(ori_err)
             in_range_step_list.append(in_range_step)

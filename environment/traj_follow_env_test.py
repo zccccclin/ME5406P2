@@ -53,13 +53,13 @@ class TrajFollowEnv(BaseEnv):
         #         )
         # p.stepSimulation()
         
-        # scaled_act = self.scale_action(act)
-        # for jtn in self.joint_indices:
-        #     p.setJointMotorControl2(self.arm_id, jtn, p.VELOCITY_CONTROL, force=0)
-        #     p.setJointMotorControl2(self.arm_id, jtn, p.TORQUE_CONTROL, force=scaled_act[jtn-1])
-        # p.stepSimulation()
-        # if self.testing:
-        #     time.sleep(0.05)
+        scaled_act = self.scale_action(act)
+        for jtn in self.joint_indices:
+            p.setJointMotorControl2(self.arm_id, jtn, p.VELOCITY_CONTROL, force=0)
+            p.setJointMotorControl2(self.arm_id, jtn, p.TORQUE_CONTROL, force=scaled_act[jtn-1])
+        p.stepSimulation()
+        if self.testing:
+            time.sleep(0.05)
 
         # self.cont_table =p.getContactPoints(self.arm_id,self.table_id )
         # self.cont_self = p.getContactPoints(self.arm_id,self.arm_id)
@@ -125,7 +125,7 @@ def main():
         goal_orn = p.getBasePositionAndOrientation(env.goal_id)[1]
         ee_q = Quaternion(ee_orn[3], ee_orn[0], ee_orn[1], ee_orn[2])
         goal_q = Quaternion(goal_orn[3], goal_orn[0], goal_orn[1], goal_orn[2])
-        q_error = goal_q.inverse * ee_q
+        q_error = goal_q * ee_q.inverse
         print( q_error)
         # print(ee_q, p.getLinkState(env.arm_id, 6)[1])
         time.sleep(0.1)
