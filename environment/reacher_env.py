@@ -17,10 +17,12 @@ class ReacherEnv(BaseEnv):
         print("\033[92m {}\033[00m".format(f"Moving target: {self.moving_goal}"))
         print("\033[92m {}\033[00m".format(f"Random start: {self.random_start}"))
         print("\033[92m {}\033[00m".format(f'Distance tolerance: {self.dist_tolerance}'))
+        print("\033[92m {}\033[00m".format(f'Observation dim: {self.obs_dim}'))
+        print("\033[92m {}\033[00m".format(f'Goal dim: {self.goal_dim}'))
         print("\033[92m {}\033[00m".format('-----------------------------------------\n'))
 
         
-    def reset(self, goal_pos=np.array([0.5, 0.3, 0.7])):
+    def reset(self, goal_pos=np.array([0.4, 0.3, 0.8])):
         if self.moving_goal:
             goal_pos = self.gen_goal()
         else:
@@ -56,30 +58,40 @@ class ReacherEnv(BaseEnv):
 
         obs = self.get_obs()
         goal_pos = np.array(p.getBasePositionAndOrientation(self.goal_id)[0])
-        reward, dist, done = self.compute_reward(obs[1], goal_pos, act)
+        goal_ori = np.array(p.getBasePositionAndOrientation(self.goal_id)[1])
+        goal = np.concatenate([goal_pos, goal_ori])
+        reward, dist, ori_err, done = self.compute_reward(obs[1], goal, act)
 
         self.ep_reward += reward
         self.ep_len += 1
         info = {"accumm_reward": self.ep_reward, 
                 "accumm_steps": self.ep_len,
                 "reward": reward,
-                "dist": dist}
+                "dist": dist,
+                "ori_err": ori_err}
         
         return obs, reward, done, info
 
-    def compute_reward(self, ee_pos, goal_pos, action):
+    def compute_reward(self, ee_pos_ori, goal_pos_ori, action):
+        ee_pos = ee_pos_ori[:3]
+        ee_ori = ee_pos_ori[3:]
+        goal_pos = goal_pos_ori[:3]
+        goal_ori = goal_pos_ori[3:]
         dist = np.linalg.norm(ee_pos - goal_pos)
         # if len(self.cont_self) > 0 or len(self.cont_table) > 0:
         #     done = True
         #     reward = -10
         #     return reward, dist, done
         # sparse reward
-        if dist < self.dist_tolerance:
+
+        # Add orientation error
+        ori_err = np.linalg.norm(ee_ori - goal_ori)
+        if dist < self.dist_tolerance and ori_err < 0.03:
             done = True
             reward_dist = 1
         else:
             done = False
-            reward_dist = -dist 
+            reward_dist = -dist - ori_err
         reward = reward_dist
         # Action penalty
         reward -= 0.01 * np.square(action).sum()
@@ -92,7 +104,7 @@ class ReacherEnv(BaseEnv):
         # else:
         #     done = False
 
-        return reward, dist, done
+        return reward, dist, ori_err, done
 
 
 

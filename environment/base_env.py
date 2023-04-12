@@ -23,7 +23,7 @@ class BaseEnv:
         # Environment params
         self.dist_tolerance = tolerance
         self.joint_indices = range(1, 7)
-        self.goal_dim = 3
+        self.goal_dim = 7
         self.obs_dim = self.get_obs()[0].size
         high = np.inf * np.ones(self.obs_dim)
         self.observation_space = spaces.Box(-high, high, dtype=np.float32)
@@ -47,6 +47,7 @@ class BaseEnv:
             self.goal_id = p.loadURDF('../assets/goal.urdf', goal_pos)
         elif goal_size == 'trajfollow':
             self.goal_id = p.loadURDF('../assets/goal_traj.urdf', goal_pos)
+        p.resetBasePositionAndOrientation(self.goal_id,goal_pos,[1,0,0,0])
         self.arm_id = p.loadURDF("xarm/xarm6_robot_white.urdf", basePosition=arm_base_pos, useFixedBase=True,
                                  flags=p.URDF_USE_SELF_COLLISION)
         ll = [-3.142,-3.14,-3.142,-3.142,-3.142,-3.142]
@@ -81,12 +82,15 @@ class BaseEnv:
         obs = np.concatenate([qpos, qvel])
 
         goal_pos = np.array(p.getBasePositionAndOrientation(self.goal_id)[0])
+        goal_ori = np.array(p.getBasePositionAndOrientation(self.goal_id)[1])
         ee_pos = np.array(p.getLinkState(self.arm_id, 6)[0])
+        ee_ori = np.array(p.getLinkState(self.arm_id, 6)[1])
 
-        obs = np.concatenate([obs, ee_pos, goal_pos])
+        obs = np.concatenate([obs, ee_pos, ee_ori, goal_pos, goal_ori])
+        ach_goal = np.concatenate([ee_pos, ee_ori])
 
 
-        return obs, ee_pos
+        return obs, ach_goal
 
     def gen_goal(self):
         x = np.random.uniform(0.2,0.5)

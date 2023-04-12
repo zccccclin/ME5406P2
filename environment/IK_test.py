@@ -44,7 +44,7 @@ def IK_reacher():
         y = np.random.uniform(-0.5,0.5)
         z = np.random.uniform(0.63,1)
         goal_pose = np.array([x,y,z])
-        p.resetBasePositionAndOrientation(goal_id,goal_pose,[0,0,0,1])
+        p.resetBasePositionAndOrientation(goal_id,goal_pose,[1,0,0,0])
 
         angle_noise_range = 0.02
         joint_states = p.getJointStates(robot_id, joint_indices)

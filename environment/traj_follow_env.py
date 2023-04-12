@@ -36,7 +36,7 @@ class TrajFollowEnv(BaseEnv):
     def step(self, act):
         # Follow trajectory
         self.traj_step += 1
-        p.resetBasePositionAndOrientation(self.goal_id,self.traj[self.traj_step],[0,0,0,1])
+        p.resetBasePositionAndOrientation(self.goal_id,self.traj[self.traj_step],[1,0,0,0])
         if self.traj_step == self.traj.shape[0]-1:
             self.traj_step = 0
 

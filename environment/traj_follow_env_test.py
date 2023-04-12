@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pybullet as p
 import time
-
+from pyquaternion import Quaternion
 from base_env import BaseEnv
 from env_util.traj_gen import generate_ellipse_trajectory, generate_rectangular_trajectory
 class TrajFollowEnv(BaseEnv):
@@ -11,6 +11,8 @@ class TrajFollowEnv(BaseEnv):
         self.random_traj = random_traj
         self.traj_step = 0
         self.in_range_step = 0
+        p.resetDebugVisualizerCamera(cameraDistance=1.5, cameraYaw=0, cameraPitch=-40, cameraTargetPosition=[0.55,-0.35,0.4])
+
         
     def reset(self):
         self.home_pos = np.array([0.21, 0, 0.8])
@@ -30,7 +32,7 @@ class TrajFollowEnv(BaseEnv):
     def step(self, act):
         # Follow trajectory
         self.traj_step += 1
-        p.resetBasePositionAndOrientation(self.goal_id,self.traj[self.traj_step],[0,0,0,1])
+        p.resetBasePositionAndOrientation(self.goal_id,self.traj[self.traj_step],[1,0,0,0])
         if self.traj_step == self.traj.shape[0]-1:
             self.traj_step = 0
 
@@ -51,13 +53,13 @@ class TrajFollowEnv(BaseEnv):
         #         )
         # p.stepSimulation()
         
-        scaled_act = self.scale_action(act)
-        for jtn in self.joint_indices:
-            p.setJointMotorControl2(self.arm_id, jtn, p.VELOCITY_CONTROL, force=0)
-            p.setJointMotorControl2(self.arm_id, jtn, p.TORQUE_CONTROL, force=scaled_act[jtn-1])
-        p.stepSimulation()
-        if self.testing:
-            time.sleep(0.05)
+        # scaled_act = self.scale_action(act)
+        # for jtn in self.joint_indices:
+        #     p.setJointMotorControl2(self.arm_id, jtn, p.VELOCITY_CONTROL, force=0)
+        #     p.setJointMotorControl2(self.arm_id, jtn, p.TORQUE_CONTROL, force=scaled_act[jtn-1])
+        # p.stepSimulation()
+        # if self.testing:
+        #     time.sleep(0.05)
 
         # self.cont_table =p.getContactPoints(self.arm_id,self.table_id )
         # self.cont_self = p.getContactPoints(self.arm_id,self.arm_id)
@@ -75,7 +77,11 @@ class TrajFollowEnv(BaseEnv):
         
         return obs, reward, done, info
 
-    def compute_reward(self, ee_pos, goal_pos, action):
+    def compute_reward(self, ee_pose, goal_pose, action):
+        ee_pos = np.array(ee_pose[:3])
+        goal_pos = np.array(goal_pose[:3])
+        ee_ori = ee_pose[3:]
+        goal_ori = goal_pose[3:]
         dist = np.linalg.norm(ee_pos - goal_pos)
 
         if dist < self.dist_tolerance:
@@ -114,7 +120,14 @@ def main():
     while True:
         action = np.random.uniform(-1., 1., env.action_space.shape[0])
         o,r,d,i = env.step(action)
-        print(env.traj_step, d, i['dist'], env.in_range_step)
+        # print(env.traj_step, d, i['dist'], env.in_range_step)
+        ee_orn = p.getLinkState(env.arm_id, 6)[1]
+        goal_orn = p.getBasePositionAndOrientation(env.goal_id)[1]
+        ee_q = Quaternion(ee_orn[3], ee_orn[0], ee_orn[1], ee_orn[2])
+        goal_q = Quaternion(goal_orn[3], goal_orn[0], goal_orn[1], goal_orn[2])
+        q_error = goal_q.inverse * ee_q
+        print( q_error)
+        # print(ee_q, p.getLinkState(env.arm_id, 6)[1])
         time.sleep(0.1)
     
     

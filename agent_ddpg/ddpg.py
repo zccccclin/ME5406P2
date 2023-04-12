@@ -42,6 +42,7 @@ class DDPG:
 
         # Log and save params
         self.best_mean_dist = np.inf
+        self.best_mean_ori_err = np.inf
         self.best_mean_reward = -np.inf
         self.best_mean_irs = 0
         self.log_interval = args.log_interval
@@ -206,7 +207,7 @@ class DDPG:
                         her_ob = np.concatenate((ob[:-self.goal_dim], new_goal), axis=0)
                         her_new_ob = np.concatenate((new_ob[:-self.goal_dim], new_goal), axis=0)
                         res = self.env.compute_reward(ach_goal.copy(), new_goal, act)
-                        her_reward, _, done = res
+                        her_reward, _, _, done = res
                         self.memory.append(her_ob, act, her_reward * self.reward_scale, her_new_ob, ach_goal.copy(), done)
             
             # Update
@@ -243,18 +244,22 @@ class DDPG:
                 if self.env_type == 'trajfollow':
                     mean_final_dist, mean_final_reward, succ_rate, mean_irs= self.rollout()
                 else:
-                    mean_final_dist, mean_final_reward, succ_rate = self.rollout()
+                    mean_final_dist, mean_final_ori_err, mean_final_reward, succ_rate = self.rollout()
                 logger.logkv('epoch', epoch)
                 logger.logkv('total_rollout_steps', total_rollout_steps)
                 logger.logkv('mean_final_dist', mean_final_dist)
-                logger.logkv('mean_final_irs', mean_irs)
+                logger.logkv('mean_final_ori_err', mean_final_ori_err)
+                if self.env_type == 'trajfollow':
+                    logger.logkv('mean_final_irs', mean_irs)
                 logger.logkv('succ_rate', succ_rate)
                 # self.log_model_weights()
                 logger.dumpkvs()
-                print(f"Mean in range step: {mean_irs}, Mean reward: {round(mean_final_reward, 3)}, Success rate: {round(succ_rate * 100, 2)}" )
-
-                # Update best model by closest distance or reward
                 if self.env_type == 'trajfollow':
+                    print(f"Mean in range step: {mean_irs}, Mean reward: {round(mean_final_reward, 3)}, Success rate: {round(succ_rate * 100, 2)}" )
+                else:
+                    print(f"Mean distance: {mean_final_dist}, Mean ori_err: {mean_final_ori_err}, Mean reward: {round(mean_final_reward, 3)}, Success rate: {round(succ_rate * 100, 2)}" )
+                # Update best model by closest distance or reward
+                if self.env_type == 'trajfollow' or self.env_type == 'reacher':
                     if mean_final_reward > self.best_mean_reward:
                         self.best_mean_reward = mean_final_reward
                         is_best = True
@@ -403,6 +408,7 @@ class DDPG:
     def rollout(self, record=False):
         done_num = 0
         final_dist = []
+        final_ori_err = []
         episode_length = []
         reward_list = []
         in_range_step_list = []
@@ -419,6 +425,7 @@ class DDPG:
                     done_num += 1
                     break
             dist = info['dist']
+            ori_err = info['ori_err']
             if self.env_type == 'trajfollow':
                 in_range_step = info['in_range_step']
             if record:
@@ -428,13 +435,16 @@ class DDPG:
                 else:
                     print(f'Test case {idx}: dist({dist}), reward({total_reward})')
             final_dist.append(dist)
+            final_ori_err.append(ori_err)
             in_range_step_list.append(in_range_step)
             reward_list.append(total_reward)
             episode_length.append(t_rollout)
         final_dist = np.array(final_dist)
         reward_list = np.array(reward_list)
+        final_ori_err = np.array(final_ori_err)
         in_range_step_list = np.array(in_range_step_list)
         mean_final_dist = np.mean(final_dist)
+        mean_final_ori_err = np.mean(final_ori_err)
         mean_in_range_step = np.mean(in_range_step_list)
         mean_final_reward = np.mean(reward_list)
         succ_rate = done_num / float(self.test_case_num)
@@ -465,6 +475,16 @@ class DDPG:
                     "".format(np.percentile(final_dist, 25)))
                 print("Third quartile: {0:9.4f}"
                     "".format(np.percentile(final_dist, 75)))
+                print('---------------Orientation---------------')
+                print("Minimum: {0:9.4f} Maximum: {1:9.4f}"
+                    "".format(np.min(final_ori_err), np.max(final_ori_err)))
+                print("Mean: {0:9.4f}".format(mean_final_ori_err))
+                print("Standard Deviation: {0:9.4f}".format(np.std(final_ori_err)))
+                print("Median: {0:9.4f}".format(np.median(final_ori_err)))
+                print("First quartile: {0:9.4f}"
+                    "".format(np.percentile(final_ori_err, 25)))
+                print("Third quartile: {0:9.4f}"
+                    "".format(np.percentile(final_ori_err, 75)))
             print('\n---------------Reward---------------')
             print("Minimum: {0:9.4f} Maximum: {1:9.4f}"
                   "".format(np.min(reward_list), np.max(reward_list)))
@@ -480,7 +500,7 @@ class DDPG:
             print('\n')
         if self.env_type == 'trajfollow':
             return mean_final_dist, mean_final_reward, succ_rate, mean_in_range_step    
-        return mean_final_dist, mean_final_reward, succ_rate
+        return mean_final_dist, mean_final_ori_err, mean_final_reward, succ_rate
 
     def log_model_weights(self):
         for name, param in self.actor.named_parameters():
