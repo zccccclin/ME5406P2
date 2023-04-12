@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pybullet as p
 import time
+from pyquaternion import Quaternion
 
 
 from base_env import BaseEnv
@@ -75,8 +76,10 @@ class ReacherEnv(BaseEnv):
     def compute_reward(self, ee_pos_ori, goal_pos_ori, action):
         ee_pos = ee_pos_ori[:3]
         ee_ori = ee_pos_ori[3:]
+        ee_q = Quaternion(a=ee_ori[3], b=ee_ori[0], c=ee_ori[1], d=ee_ori[2])
         goal_pos = goal_pos_ori[:3]
         goal_ori = goal_pos_ori[3:]
+        goal_q = Quaternion(a=goal_ori[3], b=goal_ori[0], c=goal_ori[1], d=goal_ori[2])
         dist = np.linalg.norm(ee_pos - goal_pos)
         # if len(self.cont_self) > 0 or len(self.cont_table) > 0:
         #     done = True
@@ -85,8 +88,8 @@ class ReacherEnv(BaseEnv):
         # sparse reward
 
         # Add orientation error
-        ori_err = np.linalg.norm(ee_ori - goal_ori)
-        if dist < self.dist_tolerance and ori_err < 0.03:
+        ori_err = Quaternion.distance(ee_q, goal_q)
+        if dist < self.dist_tolerance and ori_err < 0.05:
             done = True
             reward_dist = 1
         else:

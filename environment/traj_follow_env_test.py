@@ -32,7 +32,7 @@ class TrajFollowEnv(BaseEnv):
     def step(self, act):
         # Follow trajectory
         self.traj_step += 1
-        p.resetBasePositionAndOrientation(self.goal_id,self.traj[self.traj_step],[1,0,0,0])
+        p.resetBasePositionAndOrientation(self.goal_id,self.traj[self.traj_step],[0,0.3,0.7,-0.98])
         if self.traj_step == self.traj.shape[0]-1:
             self.traj_step = 0
 
@@ -53,13 +53,13 @@ class TrajFollowEnv(BaseEnv):
         #         )
         # p.stepSimulation()
         
-        scaled_act = self.scale_action(act)
-        for jtn in self.joint_indices:
-            p.setJointMotorControl2(self.arm_id, jtn, p.VELOCITY_CONTROL, force=0)
-            p.setJointMotorControl2(self.arm_id, jtn, p.TORQUE_CONTROL, force=scaled_act[jtn-1])
-        p.stepSimulation()
-        if self.testing:
-            time.sleep(0.05)
+        # scaled_act = self.scale_action(act)
+        # for jtn in self.joint_indices:
+        #     p.setJointMotorControl2(self.arm_id, jtn, p.VELOCITY_CONTROL, force=0)
+        #     p.setJointMotorControl2(self.arm_id, jtn, p.TORQUE_CONTROL, force=scaled_act[jtn-1])
+        # p.stepSimulation()
+        # if self.testing:
+        #     time.sleep(0.05)
 
         # self.cont_table =p.getContactPoints(self.arm_id,self.table_id )
         # self.cont_self = p.getContactPoints(self.arm_id,self.arm_id)
@@ -125,7 +125,7 @@ def main():
         goal_orn = p.getBasePositionAndOrientation(env.goal_id)[1]
         ee_q = Quaternion(ee_orn[3], ee_orn[0], ee_orn[1], ee_orn[2])
         goal_q = Quaternion(goal_orn[3], goal_orn[0], goal_orn[1], goal_orn[2])
-        q_error = goal_q * ee_q.inverse
+        q_error = Quaternion.absolute_distance(ee_q, goal_q)
         print( q_error)
         # print(ee_q, p.getLinkState(env.arm_id, 6)[1])
         time.sleep(0.1)
