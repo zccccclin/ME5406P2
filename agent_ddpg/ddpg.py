@@ -43,6 +43,7 @@ class DDPG:
         # Log and save params
         self.best_mean_dist = np.inf
         self.best_mean_ori_err = np.inf
+        self.best_mean_err = np.inf
         self.best_mean_reward = -np.inf
         self.best_mean_irs = 0
         self.log_interval = args.log_interval
@@ -142,8 +143,9 @@ class DDPG:
             print('Final mean reward: ', reward)
             print('Success percentage: ', succ_rate, '%')
         else:
-            dist, reward, succ_rate = self.rollout(record=record)
+            dist, ori_err, reward, succ_rate = self.rollout(record=record)
             print('Final mean distance: ', dist)
+            print('Final mean orientation error: ', ori_err)
             print('Final mean reward: ', reward)
             print('Success percentage: ', succ_rate, '%')
 
@@ -207,7 +209,7 @@ class DDPG:
                         her_ob = np.concatenate((ob[:-self.goal_dim], new_goal), axis=0)
                         her_new_ob = np.concatenate((new_ob[:-self.goal_dim], new_goal), axis=0)
                         res = self.env.compute_reward(ach_goal.copy(), new_goal, act)
-                        her_reward, _, _, done = res
+                        her_reward, _d, _o, done = res
                         self.memory.append(her_ob, act, her_reward * self.reward_scale, her_new_ob, ach_goal.copy(), done)
             
             # Update
@@ -257,9 +259,9 @@ class DDPG:
                 if self.env_type == 'trajfollow':
                     print(f"Mean in range step: {mean_irs}, Mean reward: {round(mean_final_reward, 3)}, Success rate: {round(succ_rate * 100, 2)}" )
                 else:
-                    print(f"Mean distance: {mean_final_dist}, Mean ori_err: {mean_final_ori_err}, Mean reward: {round(mean_final_reward, 3)}, Success rate: {round(succ_rate * 100, 2)}" )
+                    print(f"Mean distance: {mean_final_dist}, Mean ori_err: {mean_final_ori_err}, Total err: {mean_final_dist + mean_final_ori_err}, Mean reward: {round(mean_final_reward, 3)}, Success rate: {round(succ_rate * 100, 2)}" )
                 # Update best model by closest distance or reward
-                if self.env_type == 'trajfollow' or self.env_type == 'reacher':
+                if self.env_type == 'trajfollow':
                     if mean_final_reward > self.best_mean_reward:
                         self.best_mean_reward = mean_final_reward
                         is_best = True
@@ -270,11 +272,11 @@ class DDPG:
                         is_best = False
                     self.save_model(is_best=is_best, step=self.global_step)
                 else:
-                    if mean_final_dist < self.best_mean_dist:
-                        self.best_mean_dist = mean_final_dist
+                    if mean_final_ori_err + mean_final_dist < self.best_mean_err:
+                        self.best_mean_err = mean_final_dist + mean_final_ori_err
                         is_best = True
                         print('*********************************************')
-                        print('saving model with best mean distance')
+                        print('saving model with best mean error')
                         print('*********************************************')
                     else:
                         is_best = False
