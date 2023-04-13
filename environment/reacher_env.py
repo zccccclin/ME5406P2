@@ -2,13 +2,14 @@ import os
 import numpy as np
 import pybullet as p
 import time
+from pyquaternion import Quaternion
 
 
 from base_env import BaseEnv
 
 class ReacherEnv(BaseEnv):
-    def __init__(self, render=False, moving_goal=False, random_start=False, train=True, tolerance=0.02):
-        super().__init__(render=render, train=train, tolerance=tolerance)
+    def __init__(self, render=False, moving_goal=False, random_start=False, train=True, tolerance=0.02, env_name='reacher'):
+        super().__init__(render=render, train=train, tolerance=tolerance, env_name=env_name)
         self.moving_goal = moving_goal
         self.random_start = random_start
 
@@ -17,10 +18,12 @@ class ReacherEnv(BaseEnv):
         print("\033[92m {}\033[00m".format(f"Moving target: {self.moving_goal}"))
         print("\033[92m {}\033[00m".format(f"Random start: {self.random_start}"))
         print("\033[92m {}\033[00m".format(f'Distance tolerance: {self.dist_tolerance}'))
+        print("\033[92m {}\033[00m".format(f'Observation dim: {self.obs_dim}'))
+        print("\033[92m {}\033[00m".format(f'Goal dim: {self.goal_dim}'))
         print("\033[92m {}\033[00m".format('-----------------------------------------\n'))
 
         
-    def reset(self, goal_pos=np.array([0.5, 0.3, 0.7])):
+    def reset(self, goal_pos=np.array([0.4, 0.3, 0.8])):
         if self.moving_goal:
             goal_pos = self.gen_goal()
         else:
@@ -56,7 +59,12 @@ class ReacherEnv(BaseEnv):
 
         obs = self.get_obs()
         goal_pos = np.array(p.getBasePositionAndOrientation(self.goal_id)[0])
-        reward, dist, done = self.compute_reward(obs[1], goal_pos, act)
+        goal_ori = np.array(p.getBasePositionAndOrientation(self.goal_id)[1])
+        goal = np.concatenate([goal_pos, goal_ori])
+        if self.env_name == 'reacher_pose':
+            reward, dist, ori_err, done = self.compute_reward(obs[1], goal, act)
+        else:
+            reward, dist, done = self.compute_reward(obs[1], goal, act)
 
         self.ep_reward += reward
         self.ep_len += 1
@@ -64,34 +72,54 @@ class ReacherEnv(BaseEnv):
                 "accumm_steps": self.ep_len,
                 "reward": reward,
                 "dist": dist}
+        if self.env_name == 'reacher_pose':
+            info['ori_err'] = ori_err
         
         return obs, reward, done, info
 
-    def compute_reward(self, ee_pos, goal_pos, action):
+    def compute_reward(self, current, target, action):
+        ee_pos = current[:3]
+        goal_pos = target[:3]
         dist = np.linalg.norm(ee_pos - goal_pos)
+
+        
+         # Add orientation error
+        if self.env_name == 'reacher_pose':
+            ee_ori = current[3:]
+            goal_ori = target[3:]
+            ee_q = Quaternion(a=ee_ori[3], b=ee_ori[0], c=ee_ori[1], d=ee_ori[2])
+            goal_q = Quaternion(a=goal_ori[3], b=goal_ori[0], c=goal_ori[1], d=goal_ori[2])
+            ori_err = Quaternion.distance(ee_q, goal_q)
+        
         # if len(self.cont_self) > 0 or len(self.cont_table) > 0:
         #     done = True
         #     reward = -10
         #     return reward, dist, done
-        # sparse reward
-        if dist < self.dist_tolerance:
-            done = True
-            reward_dist = 1
+        
+        # Dense reward
+        if self.env_name == 'reacher_pose':
+            if dist < self.dist_tolerance and ori_err < 0.1:
+                done = True
+                reward_dist = 1
+            else:
+                done = False
+                reward_dist = -dist - ori_err
         else:
-            done = False
-            reward_dist = -dist 
+            if dist < self.dist_tolerance:
+                done = True
+                reward_dist = 1
+            else:
+                done = False
+                reward_dist = -dist
         reward = reward_dist
+
         # Action penalty
         reward -= 0.01 * np.square(action).sum()
 
-        # # dense reward
-        # reward = -dist
-        # if dist < self.dist_tolerance:
-        #     reward = 1
-        #     done = True
-        # else:
-        #     done = False
-
+        # Without action penalty
+        # reward = reward_dist
+        if self.env_name == 'reacher_pose':
+            return reward, dist, ori_err, done
         return reward, dist, done
 
 

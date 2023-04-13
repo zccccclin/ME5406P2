@@ -41,7 +41,7 @@ class DDPG:
         self.test_case_num = args.test_case_num
 
         # Log and save params
-        self.best_mean_dist = np.inf
+        self.best_mean_err = np.inf
         self.best_mean_reward = -np.inf
         self.best_mean_irs = 0
         self.log_interval = args.log_interval
@@ -135,14 +135,16 @@ class DDPG:
         print('\n')
 
     def test(self, record=True):
-        if self.env_type == 'trajfollow':
+        if self.env.env_name == 'trajfollow':
             dist, reward, succ_rate, irs = self.rollout(record=record)
             print('Final mean in range step: ', irs)
             print('Final mean reward: ', reward)
             print('Success percentage: ', succ_rate, '%')
         else:
-            dist, reward, succ_rate = self.rollout(record=record)
+            dist, ori_err, reward, succ_rate = self.rollout(record=record)
             print('Final mean distance: ', dist)
+            if self.env_type == 'reacher_pose':
+                print('Final mean orientation error: ', ori_err)
             print('Final mean reward: ', reward)
             print('Success percentage: ', succ_rate, '%')
 
@@ -206,7 +208,10 @@ class DDPG:
                         her_ob = np.concatenate((ob[:-self.goal_dim], new_goal), axis=0)
                         her_new_ob = np.concatenate((new_ob[:-self.goal_dim], new_goal), axis=0)
                         res = self.env.compute_reward(ach_goal.copy(), new_goal, act)
-                        her_reward, _, done = res
+                        if self.env.env_name == 'trajfollow' or self.env.env_name == 'reacher':
+                            her_reward, dist, done = res
+                        else:
+                            her_reward, dist, ori_err, done = res
                         self.memory.append(her_ob, act, her_reward * self.reward_scale, her_new_ob, ach_goal.copy(), done)
             
             # Update
@@ -242,17 +247,26 @@ class DDPG:
             if (epoch == 0 or epoch >= self.warmup_iter) and self.save_interval and epoch % self.save_interval == 0 and logger.get_dir():
                 if self.env_type == 'trajfollow':
                     mean_final_dist, mean_final_reward, succ_rate, mean_irs= self.rollout()
+                elif self.env_type == 'reacher_pose':
+                    mean_final_dist, mean_final_ori_err, mean_final_reward, succ_rate = self.rollout()
                 else:
                     mean_final_dist, mean_final_reward, succ_rate = self.rollout()
                 logger.logkv('epoch', epoch)
                 logger.logkv('total_rollout_steps', total_rollout_steps)
                 logger.logkv('mean_final_dist', mean_final_dist)
-                logger.logkv('mean_final_irs', mean_irs)
+                if self.env_type == 'reacher_pose':
+                    logger.logkv('mean_final_ori_err', mean_final_ori_err)
+                if self.env_type == 'trajfollow':
+                    logger.logkv('mean_final_irs', mean_irs)
                 logger.logkv('succ_rate', succ_rate)
                 # self.log_model_weights()
                 logger.dumpkvs()
-                print(f"Mean in range step: {mean_irs}, Mean reward: {round(mean_final_reward, 3)}, Success rate: {round(succ_rate * 100, 2)}" )
-
+                if self.env_type == 'trajfollow':
+                    print(f"Mean in range step: {mean_irs}, Mean reward: {round(mean_final_reward, 3)}, Success rate: {round(succ_rate * 100, 2)}" )
+                elif self.env_type == 'reacher_pose':
+                    print(f"Mean distance: {mean_final_dist}, Mean ori_err: {mean_final_ori_err}, Total err: {mean_final_dist + mean_final_ori_err}, Mean reward: {round(mean_final_reward, 3)}, Success rate: {round(succ_rate * 100, 2)}" )
+                else:
+                    print(f"Mean distance: {mean_final_dist}, Mean reward: {round(mean_final_reward, 3)}, Success rate: {round(succ_rate * 100, 2)}" )
                 # Update best model by closest distance or reward
                 if self.env_type == 'trajfollow':
                     if mean_final_reward > self.best_mean_reward:
@@ -265,11 +279,15 @@ class DDPG:
                         is_best = False
                     self.save_model(is_best=is_best, step=self.global_step)
                 else:
-                    if mean_final_dist < self.best_mean_dist:
-                        self.best_mean_dist = mean_final_dist
+                    if self.env_type == 'reacher_pose':
+                        error = mean_final_dist + mean_final_ori_err
+                    else:
+                        error = mean_final_dist
+                    if error < self.best_mean_err:
+                        self.best_mean_err = error
                         is_best = True
                         print('*********************************************')
-                        print('saving model with best mean distance')
+                        print('saving model with best mean error')
                         print('*********************************************')
                     else:
                         is_best = False
@@ -403,10 +421,10 @@ class DDPG:
     def rollout(self, record=False):
         done_num = 0
         final_dist = []
+        final_ori_err = []
         episode_length = []
         reward_list = []
         in_range_step_list = []
-        in_range_step = 0
         for idx in range(self.test_case_num):
             obs = self.env.reset()
             total_reward = 0
@@ -419,22 +437,29 @@ class DDPG:
                     done_num += 1
                     break
             dist = info['dist']
+            final_dist.append(dist)
+            if self.env_type == 'reacher_pose':
+                ori_err = info['ori_err']
+                final_ori_err.append(ori_err)
             if self.env_type == 'trajfollow':
                 in_range_step = info['in_range_step']
+                in_range_step_list.append(in_range_step)
             if record:
                 if self.env_type == 'trajfollow':
                     print(f'Test case {idx}: dist({dist}), reward({total_reward}),'
                           f' in_range_step({in_range_step})')
-                else:
+                elif self.env_type == 'reacher_pose':
+                    print(f'Test case {idx}: dist({dist}), ori_err({ori_err}), reward({total_reward})')
+                elif self.env_type == 'reacher':
                     print(f'Test case {idx}: dist({dist}), reward({total_reward})')
-            final_dist.append(dist)
-            in_range_step_list.append(in_range_step)
             reward_list.append(total_reward)
             episode_length.append(t_rollout)
         final_dist = np.array(final_dist)
         reward_list = np.array(reward_list)
+        final_ori_err = np.array(final_ori_err)
         in_range_step_list = np.array(in_range_step_list)
         mean_final_dist = np.mean(final_dist)
+        mean_final_ori_err = np.mean(final_ori_err)
         mean_in_range_step = np.mean(in_range_step_list)
         mean_final_reward = np.mean(reward_list)
         succ_rate = done_num / float(self.test_case_num)
@@ -465,6 +490,17 @@ class DDPG:
                     "".format(np.percentile(final_dist, 25)))
                 print("Third quartile: {0:9.4f}"
                     "".format(np.percentile(final_dist, 75)))
+                if self.env_type == 'reacher_pose':
+                    print('---------------Orientation---------------')
+                    print("Minimum: {0:9.4f} Maximum: {1:9.4f}"
+                        "".format(np.min(final_ori_err), np.max(final_ori_err)))
+                    print("Mean: {0:9.4f}".format(mean_final_ori_err))
+                    print("Standard Deviation: {0:9.4f}".format(np.std(final_ori_err)))
+                    print("Median: {0:9.4f}".format(np.median(final_ori_err)))
+                    print("First quartile: {0:9.4f}"
+                        "".format(np.percentile(final_ori_err, 25)))
+                    print("Third quartile: {0:9.4f}"
+                        "".format(np.percentile(final_ori_err, 75)))
             print('\n---------------Reward---------------')
             print("Minimum: {0:9.4f} Maximum: {1:9.4f}"
                   "".format(np.min(reward_list), np.max(reward_list)))
@@ -480,6 +516,8 @@ class DDPG:
             print('\n')
         if self.env_type == 'trajfollow':
             return mean_final_dist, mean_final_reward, succ_rate, mean_in_range_step    
+        elif self.env_type == 'reacher_pose':
+            return mean_final_dist, mean_final_ori_err, mean_final_reward, succ_rate
         return mean_final_dist, mean_final_reward, succ_rate
 
     def log_model_weights(self):
