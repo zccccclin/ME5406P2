@@ -7,10 +7,11 @@ from pybullet_utils import bullet_client as bc
 import pybullet_data
 
 class BaseEnv:
-    def __init__(self, render, train=True, tolerance=0.02):    
+    def __init__(self, render, train=True, tolerance=0.02, env_name='reacher'):    
         # Initialize Pybullet
         self.pc = bc.BulletClient(p.GUI if render else p.DIRECT)
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
+        self.env_name = env_name
         
         if train:
             self.testing = False
@@ -23,7 +24,10 @@ class BaseEnv:
         # Environment params
         self.dist_tolerance = tolerance
         self.joint_indices = range(1, 7)
-        self.goal_dim = 7
+        if self.env_name == 'reacher' or self.env_name == 'trajfollow':
+            self.goal_dim = 3
+        else:
+            self.goal_dim = 7
         self.obs_dim = self.get_obs()[0].size
         high = np.inf * np.ones(self.obs_dim)
         self.observation_space = spaces.Box(-high, high, dtype=np.float32)
@@ -34,7 +38,7 @@ class BaseEnv:
     def reset(self, arm_id=None):
         pass
 
-    def reset_scene(self, goal_pos=None, home_pos=None, goal_size='reacher'):
+    def reset_scene(self, goal_pos=None, home_pos=None):
         p.resetSimulation()
         p.setGravity(0, 0, -9.81)
         p.resetDebugVisualizerCamera(cameraDistance=1.5, cameraYaw=0, cameraPitch=-40, cameraTargetPosition=[0.55,-0.35,0.4])
@@ -43,9 +47,9 @@ class BaseEnv:
         goal_pos = goal_pos if goal_pos is not None else [0, 0, 0]
         p.loadURDF("plane.urdf")
         self.table_id = p.loadURDF("table/table.urdf", basePosition=table_base_pos)
-        if goal_size == 'reacher':
+        if self.env_name == 'reacher' or self.env_name == 'reacher_pose':
             self.goal_id = p.loadURDF('../assets/goal.urdf', goal_pos)
-        elif goal_size == 'trajfollow':
+        else:
             self.goal_id = p.loadURDF('../assets/goal_traj.urdf', goal_pos)
         p.resetBasePositionAndOrientation(self.goal_id,goal_pos,[1,0,0,0])
         self.arm_id = p.loadURDF("xarm/xarm6_robot_white.urdf", basePosition=arm_base_pos, useFixedBase=True,
@@ -86,9 +90,12 @@ class BaseEnv:
         ee_pos = np.array(p.getLinkState(self.arm_id, 6)[0])
         ee_ori = np.array(p.getLinkState(self.arm_id, 6)[1])
 
-        obs = np.concatenate([obs, ee_pos, ee_ori, goal_pos, goal_ori])
-        ach_goal = np.concatenate([ee_pos, ee_ori])
-
+        if self.env_name == 'reacher_pose':
+            obs = np.concatenate([obs, ee_pos, ee_ori, goal_pos, goal_ori])
+            ach_goal = np.concatenate([ee_pos, ee_ori])
+        else:
+            obs = np.concatenate([obs, ee_pos, goal_pos])
+            ach_goal = ee_pos
 
         return obs, ach_goal
 

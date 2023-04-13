@@ -8,7 +8,7 @@ from env_util.traj_gen import generate_ellipse_trajectory, generate_rectangular_
 
 class TrajFollowEnv(BaseEnv):
     def __init__(self, render, train=True, random_traj=False, tolerance=0.05):
-        super().__init__(render=render, train=train, tolerance=tolerance)
+        super().__init__(render=render, train=train, tolerance=tolerance, env_name='trajfollow')
         self.random_traj = random_traj
         self.traj_step = 0
         self.in_range_step = 0
