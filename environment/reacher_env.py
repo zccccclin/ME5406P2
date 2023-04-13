@@ -97,15 +97,10 @@ class ReacherEnv(BaseEnv):
             reward_dist = -dist - ori_err
         reward = reward_dist
         # Action penalty
-        reward -= 0.01 * np.square(action).sum()
+        # reward -= 0.01 * np.square(action).sum()
 
-        # # dense reward
-        # reward = -dist
-        # if dist < self.dist_tolerance:
-        #     reward = 1
-        #     done = True
-        # else:
-        #     done = False
+        # Without action penalty
+        reward = reward_dist
 
         return reward, dist, ori_err, done
 

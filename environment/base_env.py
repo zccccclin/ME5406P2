@@ -95,6 +95,6 @@ class BaseEnv:
     def gen_goal(self):
         x = np.random.uniform(0.2,0.5)
         y = np.random.uniform(-0.5,0.5)
-        z = np.random.uniform(0.7,1.2)
+        z = np.random.uniform(0.7,1)
         return np.array([x,y,z])
     
