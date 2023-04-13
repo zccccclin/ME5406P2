@@ -86,7 +86,7 @@ def main():
     if args.env == 'trajfollow':
         env = TrajFollowEnv(render=args.render, random_traj=args.random_traj, train=not args.test, tolerance=0.05)
     else:
-        env = ReacherEnv(render=args.render, moving_goal=args.moving_goal, random_start=args.random_start, train=not args.test, tolerance=args.tol, env_type=args.env)
+        env = ReacherEnv(render=args.render, moving_goal=args.moving_goal, random_start=args.random_start, train=not args.test, tolerance=args.tol, env_name=args.env)
 
     ddpg = DDPG(env=env, args=args)
     if args.test:

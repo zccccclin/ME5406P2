@@ -208,7 +208,10 @@ class DDPG:
                         her_ob = np.concatenate((ob[:-self.goal_dim], new_goal), axis=0)
                         her_new_ob = np.concatenate((new_ob[:-self.goal_dim], new_goal), axis=0)
                         res = self.env.compute_reward(ach_goal.copy(), new_goal, act)
-                        her_reward, error, done = res
+                        if self.env.env_name == 'trajfollow' or self.env.env_name == 'reacher':
+                            her_reward, dist, done = res
+                        else:
+                            her_reward, dist, ori_err, done = res
                         self.memory.append(her_ob, act, her_reward * self.reward_scale, her_new_ob, ach_goal.copy(), done)
             
             # Update

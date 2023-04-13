@@ -61,7 +61,10 @@ class ReacherEnv(BaseEnv):
         goal_pos = np.array(p.getBasePositionAndOrientation(self.goal_id)[0])
         goal_ori = np.array(p.getBasePositionAndOrientation(self.goal_id)[1])
         goal = np.concatenate([goal_pos, goal_ori])
-        reward, error, done = self.compute_reward(obs[1], goal, act)
+        if self.env_name == 'reacher_pose':
+            reward, dist, ori_err, done = self.compute_reward(obs[1], goal, act)
+        else:
+            reward, dist, done = self.compute_reward(obs[1], goal, act)
 
         self.ep_reward += reward
         self.ep_len += 1
@@ -115,8 +118,9 @@ class ReacherEnv(BaseEnv):
 
         # Without action penalty
         # reward = reward_dist
-
-        return reward, dist, ori_err, done
+        if self.env_name == 'reacher_pose':
+            return reward, dist, ori_err, done
+        return reward, dist, done
 
 
 

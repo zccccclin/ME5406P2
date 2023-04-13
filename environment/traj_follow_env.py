@@ -20,7 +20,7 @@ class TrajFollowEnv(BaseEnv):
 
     def reset(self):
         self.home_pos = np.array([0.21, 0, 0.8])
-        self.reset_scene(home_pos=self.home_pos, goal_pos=self.home_pos, goal_size='trajfollow')
+        self.reset_scene(home_pos=self.home_pos, goal_pos=self.home_pos)
         self.traj_step = 0
         self.in_range_step = 0 
         if self.random_traj:
