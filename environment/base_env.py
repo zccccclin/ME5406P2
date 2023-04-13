@@ -7,7 +7,7 @@ from pybullet_utils import bullet_client as bc
 import pybullet_data
 
 class BaseEnv:
-    def __init__(self, render, train=True, tolerance=0.02, env_name='reacher'):    
+    def __init__(self, render, train=True, dist_tol=0.02, ori_tol=0.1, env_name='reacher'):    
         # Initialize Pybullet
         self.pc = bc.BulletClient(p.GUI if render else p.DIRECT)
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
@@ -22,7 +22,8 @@ class BaseEnv:
         self.reset_scene(None)
         
         # Environment params
-        self.dist_tolerance = tolerance
+        self.dist_tol = dist_tol
+        self.ori_tol = ori_tol
         self.joint_indices = range(1, 7)
         if self.env_name == 'reacher' or self.env_name == 'trajfollow':
             self.goal_dim = 3
@@ -90,7 +91,7 @@ class BaseEnv:
         ee_pos = np.array(p.getLinkState(self.arm_id, 6)[0])
         ee_ori = np.array(p.getLinkState(self.arm_id, 6)[1])
 
-        if self.env_name == 'reacher_pose':
+        if self.env_name == 'reacher_pose' or self.env_name == 'trajfollow_pose':
             obs = np.concatenate([obs, ee_pos, ee_ori, goal_pos, goal_ori])
             ach_goal = np.concatenate([ee_pos, ee_ori])
         else:

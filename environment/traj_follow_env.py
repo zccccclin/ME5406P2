@@ -2,20 +2,26 @@ import os
 import numpy as np
 import pybullet as p
 import time
+from pyquaternion import Quaternion
 
 from base_env import BaseEnv
 from env_util.traj_gen import generate_ellipse_trajectory, generate_rectangular_trajectory
 
 class TrajFollowEnv(BaseEnv):
-    def __init__(self, render, train=True, random_traj=False, tolerance=0.05):
-        super().__init__(render=render, train=train, tolerance=tolerance, env_name='trajfollow')
+    def __init__(self, render, train=True, random_traj=False, dist_tol=0.05, ori_tol=0.1, env_name='trajfollow'):
+        super().__init__(render=render, train=train, dist_tol=dist_tol, ori_tol=ori_tol, env_name=env_name)
         self.random_traj = random_traj
         self.traj_step = 0
         self.in_range_step = 0
         # Pritn variables
         print("\033[92m {}\033[00m".format('\n----------Environment created----------'))
+        print("\033[92m {}\033[00m".format(f"Environment name: {self.env_name}"))
         print("\033[92m {}\033[00m".format(f"Random Trajectory: {self.random_traj}"))
-        print("\033[92m {}\033[00m".format(f'Distance tolerance: {self.dist_tolerance}'))
+        print("\033[92m {}\033[00m".format(f'Distance tolerance: {self.dist_tol}'))
+        if self.env_name == 'trajfollow_pose':
+            print("\033[92m {}\033[00m".format(f'Orientation tolerance: {self.ori_tol}'))
+        print("\033[92m {}\033[00m".format(f'Observation dim: {self.obs_dim}'))
+        print("\033[92m {}\033[00m".format(f'Goal dim: {self.goal_dim}'))
         print("\033[92m {}\033[00m".format('-----------------------------------------\n'))
 
     def reset(self):
@@ -70,8 +76,12 @@ class TrajFollowEnv(BaseEnv):
 
         obs = self.get_obs()
         goal_pos = np.array(p.getBasePositionAndOrientation(self.goal_id)[0])
-        reward, dist, done = self.compute_reward(obs[1], goal_pos, act)
-
+        goal_ori = np.array(p.getBasePositionAndOrientation(self.goal_id)[1])
+        goal = np.concatenate([goal_pos, goal_ori])
+        if self.env_name == 'trajfollow_pose':
+            reward, dist, ori_err, done = self.compute_reward(obs[1], goal, act)
+        else:
+            reward, dist, done = self.compute_reward(obs[1], goal, act)
         self.ep_reward += reward
         self.ep_len += 1
         info = {"accumm_reward": self.ep_reward, 
@@ -79,26 +89,56 @@ class TrajFollowEnv(BaseEnv):
                 "reward": reward,
                 "dist": dist,
                 "in_range_step": self.in_range_step}
+        if self.env_name == 'trajfollow_pose':
+            info["ori_err"] = ori_err
         
         return obs, reward, done, info
 
-    def compute_reward(self, ee_pos, goal_pos, action):
+    def compute_reward(self, current, target, action):
+        ee_pos = current[:3]
+        goal_pos = target[:3]
         dist = np.linalg.norm(ee_pos - goal_pos)
 
-        if dist < self.dist_tolerance:
-            done = False
-            reward_dist = 0.1
-            self.in_range_step += 1
+         # Add orientation error
+        if self.env_name == 'trajfollow_pose':
+            ee_ori = current[3:]
+            goal_ori = target[3:]
+            ee_q = Quaternion(a=ee_ori[3], b=ee_ori[0], c=ee_ori[1], d=ee_ori[2])
+            goal_q = Quaternion(a=goal_ori[3], b=goal_ori[0], c=goal_ori[1], d=goal_ori[2])
+            ori_err = Quaternion.distance(ee_q, goal_q)
+
+        if self.env_name == 'trajfollow_pose':
+            if dist < self.dist_tol:
+                done = False
+                reward_dist = 0.1
+                if ori_err < self.ori_tol:
+                    reward_dist = 0.2
+                self.in_range_step += 1
+            else:
+                done = False
+                reward_dist = - dist - ori_err
+                self.in_range_step = 0
+            if self.in_range_step > 190:
+                done = True
+                reward_dist = 1
         else:
-            done = False
-            reward_dist = -1
-            self.in_range_step = 0
-        if self.in_range_step > 190:
-            done = True
-            reward_dist = 1
+            if dist < self.dist_tol:
+                done = False
+                reward_dist = 0.1
+                self.in_range_step += 1
+            else:
+                done = False
+                reward_dist = - dist
+                self.in_range_step = 0
+            if self.in_range_step > 190:
+                done = True
+                reward_dist = 1
 
         reward = reward_dist
         reward -= 0.1 * np.square(action).sum()
+
+        if self.env_name == 'trajfollow_pose':
+            return reward, dist, ori_err, done
         return reward, dist, done
     
     def gen_traj(self):

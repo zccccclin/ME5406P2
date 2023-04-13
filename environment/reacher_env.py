@@ -8,21 +8,23 @@ from pyquaternion import Quaternion
 from base_env import BaseEnv
 
 class ReacherEnv(BaseEnv):
-    def __init__(self, render=False, moving_goal=False, random_start=False, train=True, tolerance=0.02, env_name='reacher'):
-        super().__init__(render=render, train=train, tolerance=tolerance, env_name=env_name)
+    def __init__(self, render=False, moving_goal=False, random_start=False, train=True, dist_tol=0.02, ori_tol=0.1, env_name='reacher'):
+        super().__init__(render=render, train=train, dist_tol=dist_tol, ori_tol=ori_tol, env_name=env_name)
         self.moving_goal = moving_goal
         self.random_start = random_start
 
         # Pritn variables
         print("\033[92m {}\033[00m".format('\n----------Environment created----------'))
+        print("\033[92m {}\033[00m".format(f"Environment name: {self.env_name}"))
         print("\033[92m {}\033[00m".format(f"Moving target: {self.moving_goal}"))
         print("\033[92m {}\033[00m".format(f"Random start: {self.random_start}"))
-        print("\033[92m {}\033[00m".format(f'Distance tolerance: {self.dist_tolerance}'))
+        print("\033[92m {}\033[00m".format(f'Distance tolerance: {self.dist_tol}'))
+        if self.env_name == 'reacher_pose':
+            print("\033[92m {}\033[00m".format(f'Orientation tolerance: {self.ori_tol}'))
         print("\033[92m {}\033[00m".format(f'Observation dim: {self.obs_dim}'))
         print("\033[92m {}\033[00m".format(f'Goal dim: {self.goal_dim}'))
         print("\033[92m {}\033[00m".format('-----------------------------------------\n'))
 
-        
     def reset(self, goal_pos=np.array([0.4, 0.3, 0.8])):
         if self.moving_goal:
             goal_pos = self.gen_goal()
@@ -82,7 +84,6 @@ class ReacherEnv(BaseEnv):
         goal_pos = target[:3]
         dist = np.linalg.norm(ee_pos - goal_pos)
 
-        
          # Add orientation error
         if self.env_name == 'reacher_pose':
             ee_ori = current[3:]
@@ -98,14 +99,14 @@ class ReacherEnv(BaseEnv):
         
         # Dense reward
         if self.env_name == 'reacher_pose':
-            if dist < self.dist_tolerance and ori_err < 0.1:
+            if dist < self.dist_tol and ori_err < self.ori_tol:
                 done = True
                 reward_dist = 1
             else:
                 done = False
                 reward_dist = -dist - ori_err
         else:
-            if dist < self.dist_tolerance:
+            if dist < self.dist_tol:
                 done = True
                 reward_dist = 1
             else:
