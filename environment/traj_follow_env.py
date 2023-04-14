@@ -8,16 +8,19 @@ from base_env import BaseEnv
 from env_util.traj_gen import generate_ellipse_trajectory, generate_rectangular_trajectory
 
 class TrajFollowEnv(BaseEnv):
-    def __init__(self, render, train=True, random_traj=False, dist_tol=0.05, ori_tol=0.1, env_name='trajfollow'):
+    def __init__(self, render, train=True, random_traj=False, dist_tol=0.05, ori_tol=0.1, env_name='trajfollow', reward_type='dense'):
         super().__init__(render=render, train=train, dist_tol=dist_tol, ori_tol=ori_tol, env_name=env_name)
         self.random_traj = random_traj
         self.traj_step = 0
         self.in_range_step = 0
+        self.reward_type = reward_type
+
         # Pritn variables
         print("\033[92m {}\033[00m".format('\n----------Environment created----------'))
         print("\033[92m {}\033[00m".format(f"Environment name: {self.env_name}"))
         print("\033[92m {}\033[00m".format(f"Random Trajectory: {self.random_traj}"))
         print("\033[92m {}\033[00m".format(f'Distance tolerance: {self.dist_tol}'))
+        print("\033[92m {}\033[00m".format(f'reward_type: {self.reward_type}'))
         if self.env_name == 'trajfollow_pose':
             print("\033[92m {}\033[00m".format(f'Orientation tolerance: {self.ori_tol}'))
         print("\033[92m {}\033[00m".format(f'Observation dim: {self.obs_dim}'))
@@ -116,7 +119,10 @@ class TrajFollowEnv(BaseEnv):
                 self.in_range_step += 1
             else:
                 done = False
-                reward_dist = - dist - ori_err
+                if self.reward_type == 'dense':
+                    reward_dist = - dist - ori_err
+                else:
+                    reward_dist = -1
                 self.in_range_step = 0
             if self.in_range_step > 190:
                 done = True
@@ -128,7 +134,10 @@ class TrajFollowEnv(BaseEnv):
                 self.in_range_step += 1
             else:
                 done = False
-                reward_dist = - dist
+                if self.reward_type == 'dense':
+                    reward_dist = - dist
+                else:
+                    reward_dist = -1
                 self.in_range_step = 0
             if self.in_range_step > 190:
                 done = True

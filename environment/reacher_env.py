@@ -8,10 +8,11 @@ from pyquaternion import Quaternion
 from base_env import BaseEnv
 
 class ReacherEnv(BaseEnv):
-    def __init__(self, render=False, moving_goal=False, random_start=False, train=True, dist_tol=0.02, ori_tol=0.1, env_name='reacher'):
+    def __init__(self, render=False, moving_goal=False, random_start=False, train=True, dist_tol=0.02, ori_tol=0.1, env_name='reacher', reward_type='dense'):
         super().__init__(render=render, train=train, dist_tol=dist_tol, ori_tol=ori_tol, env_name=env_name)
         self.moving_goal = moving_goal
         self.random_start = random_start
+        self.reward_type = reward_type
 
         # Pritn variables
         print("\033[92m {}\033[00m".format('\n----------Environment created----------'))
@@ -19,6 +20,7 @@ class ReacherEnv(BaseEnv):
         print("\033[92m {}\033[00m".format(f"Moving target: {self.moving_goal}"))
         print("\033[92m {}\033[00m".format(f"Random start: {self.random_start}"))
         print("\033[92m {}\033[00m".format(f'Distance tolerance: {self.dist_tol}'))
+        print("\033[92m {}\033[00m".format(f'reward_type: {self.reward_type}'))
         if self.env_name == 'reacher_pose':
             print("\033[92m {}\033[00m".format(f'Orientation tolerance: {self.ori_tol}'))
         print("\033[92m {}\033[00m".format(f'Observation dim: {self.obs_dim}'))
@@ -104,7 +106,10 @@ class ReacherEnv(BaseEnv):
                 reward_dist = 1
             else:
                 done = False
-                reward_dist = -dist - ori_err
+                if self.reward_type == 'dense':
+                    reward_dist = -dist - ori_err
+                else:
+                    reward_dist = -1
         else:
             if dist < self.dist_tol:
                 done = True

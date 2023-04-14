@@ -18,6 +18,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--env', default='reacher', type=str)
+    parser.add_argument('--reward_type', default='dense', choices=['dense', 'sparse'], type=str)
     parser.add_argument('--moving_goal', action='store_true')
     parser.add_argument('--random_start', action='store_true')
     parser.add_argument('--random_traj', action='store_true')
@@ -43,7 +44,8 @@ def main():
     parser.add_argument('--uniform_noise_high', type=float, default=0.5)
     parser.add_argument('--uniform_noise_low', type=float, default=-0.)
     parser.add_argument('--max_noise_dec_step', type=float, default=0.000)
-    parser.add_argument('--tol', type=float, default=0.02)
+    parser.add_argument('--dist_tol', type=float, default=0.02)
+    parser.add_argument('--ori_tol', type=float, default=0.1)
     parser.add_argument('--random_prob', type=float, default=0.1)
     parser.add_argument('--normal_noise_std', type=float, default=0.1)
     parser.add_argument('--noise_type', default='uniform', choices=['uniform', 'ou_noise', 'gaussian'], type=str)
@@ -84,9 +86,9 @@ def main():
 
     # Environment setup
     if args.env == 'trajfollow' or args.env == 'trajfollow_pose':
-        env = TrajFollowEnv(render=args.render, random_traj=args.random_traj, train=not args.test, dist_tol=0.05, ori_tol=0.1, env_name=args.env)
+        env = TrajFollowEnv(render=args.render, random_traj=args.random_traj, train=not args.test, dist_tol=0.05, ori_tol=0.1, env_name=args.env, reward_type=args.reward_type)
     else:
-        env = ReacherEnv(render=args.render, moving_goal=args.moving_goal, random_start=args.random_start, train=not args.test, dist_tol=args.tol, ori_tol=0.1, env_name=args.env)
+        env = ReacherEnv(render=args.render, moving_goal=args.moving_goal, random_start=args.random_start, train=not args.test, dist_tol=args.dist_tol, ori_tol=0.1, env_name=args.env, reward_type=args.reward_type)
 
     ddpg = DDPG(env=env, args=args)
     if args.test:
