@@ -48,7 +48,7 @@ Moving desired model from `Trained_models` into `./agent_ddpg/data/` folder and 
 
 ## parameters for tweaking
 During training, parameters could be used to tweak training process:
-###### Environment parameters
+##### Environment parameters
 | Parameter name      | Type | Info |
 | --------- | ----- | ----- |
 | `--env`     |   str | environment name, 4 choices mentioned in Training new models subsection.|
@@ -61,7 +61,9 @@ During training, parameters could be used to tweak training process:
 
 
 ##### Agent paramters 
-| Parameter name| Type | Info |
+
+| Parameter name  | Type | Info |
+| --------- | ----- | ----- |
 | `--test`  | store_true | run best model for test cases. |
 | `--render`| store_true| use pybullet for rendering.|
 | `--resume`  | store_true | resume from best model. |
