@@ -199,12 +199,3 @@ class PPO_Agent:
         self.logger['batch_len'] = []
         self.logger['batch_reward'] = []
         self.logger['actor_loss'] = []
-
-
-import gym
-import sys
-sys.path.append("../environment")
-from reacher_env import ReacherEnv
-env = ReacherEnv(render=False, moving_goal=False, train=True, tolerance=0.02)
-agent = PPO_Agent(env)
-agent.learn(100000) 
