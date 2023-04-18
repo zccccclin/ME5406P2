@@ -116,7 +116,10 @@ class ReacherEnv(BaseEnv):
                 reward_dist = 1
             else:
                 done = False
-                reward_dist = -dist
+                if self.reward_type == 'dense':
+                    reward_dist = -dist
+                else:
+                    reward_dist = -1
         reward = reward_dist
 
         # Action penalty
