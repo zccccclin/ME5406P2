@@ -140,25 +140,25 @@ class DDPG:
             print('Final mean in range step: ', irs)
             print('Final mean distance: ', dist)
             print('Final mean reward: ', reward)
-            print('Success percentage: ', succ_rate, '%')
+            print('Success percentage: ', succ_rate * 100, '%')
         elif self.env.env_name == 'trajfollow_pose':
             dist, ori_err, reward, succ_rate, irs = self.rollout(record=record)
             print('Final mean in range step: ', irs)
             print('Final mean distance: ', dist)
             print('Final mean orientation error: ', ori_err)
             print('Final mean reward: ', reward)
-            print('Success percentage: ', succ_rate, '%')
+            print('Success percentage: ', succ_rate * 100, '%')
         elif self.env.env_name == 'reacher_pose':
             dist, ori_err, reward, succ_rate = self.rollout(record=record)
             print('Final mean distance: ', dist)
             print('Final mean orientation error: ', ori_err)
             print('Final mean reward: ', reward)
-            print('Success percentage: ', succ_rate, '%')
+            print('Success percentage: ', succ_rate * 100, '%')
         elif self.env.env_name == 'reacher':
             dist, reward, succ_rate = self.rollout(record=record)
             print('Final mean distance: ', dist)
             print('Final mean reward: ', reward)
-            print('Success percentage: ', succ_rate, '%')
+            print('Success percentage: ', succ_rate * 100, '%')
             
 
     def train(self):
